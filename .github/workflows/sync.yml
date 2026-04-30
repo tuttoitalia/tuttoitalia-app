@@ -1,0 +1,24 @@
+name: Sync Events & Ratings
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Ogni giorno alle 2 AM UTC
+  workflow_dispatch:  # Manuale da GitHub
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        run: npm install @base44/sdk
+      
+      - name: Run Sync Script
+        env:
+          BASE44_APP_ID: ${{ secrets.BASE44_APP_ID }}
+          BASE44_APP_OWNER: ${{ secrets.BASE44_APP_OWNER }}
+          BASE44_API_KEY: ${{ secrets.BASE44_API_KEY }}
+        run: node sync.js
