@@ -1,0 +1,11 @@
+# Dipendenze
+node_modules/
+
+# Variabili d'ambiente e segreti — NON committare mai
+.env
+.env.*
+*.local
+
+# Log e file di sistema
+*.log
+.DS_Store
