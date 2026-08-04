@@ -340,14 +340,21 @@ export async function eventfrog(nome) {
 // risultati fuorvianti (cercando "Ligabue" su Eventfrog esce uno spettacolo
 // teatrale su Antonio Ligabue, il PITTORE). Teniamo un risultato solo se il
 // nome cercato compare davvero nel titolo o nell'artista.
+// ATTENZIONE: niente confronti per sottostringa. Cercando "Ultimo" la ricerca
+// restituisce "Ricardo Montaner - El Ultimo Regreso", cercando "Olly" restituisce
+// "Jolly & the Flytrap". Servono il nome intero o una coincidenza esatta.
 export function pertinente(evento, nomeCercato) {
-  const n = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-  const ago = n(nomeCercato);
-  const paglia = `${n(evento.nome)} ${n(evento.artista)}`;
-  if (paglia.includes(ago)) return true;
-  // match anche su cognome/parola più lunga (es. "Massimo Ranieri" -> "ranieri")
-  const parole = ago.split(/\s+/).filter((w) => w.length >= 5);
-  return parole.length > 0 && parole.every((w) => paglia.includes(w));
+  const n = (s) => (s || '').toString().toLowerCase().normalize('NFD')
+    .replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  const cercato = n(nomeCercato);
+  const artista = n(evento.artista);
+  const titolo = n(evento.nome);
+  if (!cercato) return false;
+  if (artista && artista === cercato) return true;              // artista esatto
+  if (cercato.length >= 8 && (titolo.includes(cercato) || artista.includes(cercato))) return true;
+  // nome corto (Anna, Olly, Nitro): accettato solo come parola isolata nel titolo
+  const parola = new RegExp(`(^| )${cercato.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}( |$)`);
+  return parola.test(artista);
 }
 
 export const FONTI_CATALOGO = {
