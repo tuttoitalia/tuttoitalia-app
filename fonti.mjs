@@ -276,7 +276,10 @@ export async function ticketino(nome) {
     out.push({
       fonte: 'ticketino',
       sourceId: String(e.Id ?? ''),
-      artista: nome,
+      // Ticketino non espone un campo artista: lasciarlo null è importante,
+      // perché riempirlo col nome CERCATO renderebbe cieco il filtro di pertinenza
+      // (era così che "Jolly & the Flytrap" passava per Olly).
+      artista: null,
       nome: pulisci(e.Name),
       dataIso,
       ora: pulisci(e.StartTime),
@@ -352,9 +355,10 @@ export function pertinente(evento, nomeCercato) {
   if (!cercato) return false;
   if (artista && artista === cercato) return true;              // artista esatto
   if (cercato.length >= 8 && (titolo.includes(cercato) || artista.includes(cercato))) return true;
-  // nome corto (Anna, Olly, Nitro): accettato solo come parola isolata nel titolo
+  // nome corto (Anna, Olly, Nitro): solo come PAROLA ISOLATA, mai dentro un'altra
+  // ("jolly the flytrap" non contiene la parola "olly", quindi viene respinto)
   const parola = new RegExp(`(^| )${cercato.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}( |$)`);
-  return parola.test(artista);
+  return parola.test(artista) || parola.test(titolo);
 }
 
 export const FONTI_CATALOGO = {
