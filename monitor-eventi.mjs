@@ -124,10 +124,33 @@ async function fetchT(url, opts = {}, ms = 20000) {
     clearTimeout(t);
   }
 }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Riprova le richieste di rete: un singolo "fetch failed" transitorio non deve
+// far saltare il giro (successo verificato dopo un fallimento in produzione).
+async function withRetry(fn, what, tentativi = 3) {
+  let ultimo;
+  for (let i = 1; i <= tentativi; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      ultimo = e;
+      if (i < tentativi) {
+        const attesa = i * 3000;
+        console.warn(`  ↻ ${what}: tentativo ${i}/${tentativi} fallito (${e.message}), riprovo tra ${attesa / 1000}s`);
+        await sleep(attesa);
+      }
+    }
+  }
+  throw ultimo;
+}
+
 async function getHtml(url) {
-  const r = await fetchT(url, { headers: { 'User-Agent': 'TuttoitaliaEventBot/1.0 (+https://tuttoitalia.ch)' } });
-  if (!r.ok) throw new Error(`GET ${url} -> ${r.status}`);
-  return await r.text();
+  return withRetry(async () => {
+    const r = await fetchT(url, { headers: { 'User-Agent': 'TuttoitaliaEventBot/1.0 (+https://tuttoitalia.ch)' } });
+    if (!r.ok) throw new Error(`GET ${url} -> ${r.status}`);
+    return await r.text();
+  }, `GET ${url}`);
 }
 
 // Meta dalla riga finale della card: "Locarno 16.12.2026" | "Lugano 20.03.27" | "Europe Tour"
@@ -209,12 +232,16 @@ function parseDetail(html, cardCity, fallbackImg) {
 const B44_URL = `https://base44.app/api/apps/${B44_APP_ID}/entities/Evento`;
 
 async function base44Nomi() {
-  const r = await fetchT(B44_URL, { headers: { api_key: B44_API_KEY } });
-  if (!r.ok) throw new Error(`Base44 list ${r.status}: ${(await r.text()).slice(0, 200)}`);
-  const arr = await r.json();
-  return new Set((Array.isArray(arr) ? arr : []).map((e) => norm(e.nome)));
+  return withRetry(async () => {
+    const r = await fetchT(B44_URL, { headers: { api_key: B44_API_KEY } });
+    if (!r.ok) throw new Error(`Base44 list ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    const arr = await r.json();
+    return new Set((Array.isArray(arr) ? arr : []).map((e) => norm(e.nome)));
+  }, 'Base44 list');
 }
 
+// NIENTE retry qui: la POST non è idempotente e un secondo tentativo dopo un
+// timeout ambiguo creerebbe un evento doppio sul calendario pubblico.
 async function base44Create(payload) {
   const r = await fetchT(B44_URL, {
     method: 'POST',
@@ -231,13 +258,16 @@ const supaHeaders = {
   Authorization: `Bearer ${SUPA_KEY}`,
   'Content-Type': 'application/json',
 };
+// Retry sicuro: l'upsert su base44_id è idempotente per costruzione.
 async function supaUpsert(b44obj) {
-  const r = await fetchT(`${SUPA_URL}/rest/v1/events?on_conflict=base44_id`, {
-    method: 'POST',
-    headers: { ...supaHeaders, Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify([mapEvent(b44obj)]),
-  });
-  if (!r.ok) throw new Error(`Supabase upsert ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  return withRetry(async () => {
+    const r = await fetchT(`${SUPA_URL}/rest/v1/events?on_conflict=base44_id`, {
+      method: 'POST',
+      headers: { ...supaHeaders, Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify([mapEvent(b44obj)]),
+    });
+    if (!r.ok) throw new Error(`Supabase upsert ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  }, 'Supabase upsert');
 }
 
 // ─── Main ─────────────────────────────────────────────────────
