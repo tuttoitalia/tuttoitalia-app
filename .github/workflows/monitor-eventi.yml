@@ -1,0 +1,31 @@
+name: Monitor Eventi Agenzie
+
+on:
+  schedule:
+    - cron: '0 * * * *'   # Ogni ora (UTC). GitHub può ritardare di qualche minuto sotto carico.
+  workflow_dispatch:        # Esecuzione manuale dal tab Actions
+    inputs:
+      dry_run:
+        description: "Prova senza scrivere (1 = dry run, 0 = reale)"
+        default: '0'
+        required: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run Monitor Script
+        env:
+          BASE44_APP_ID: ${{ secrets.BASE44_APP_ID }}
+          BASE44_API_KEY: ${{ secrets.BASE44_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: node monitor-eventi.mjs
