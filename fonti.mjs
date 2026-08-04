@@ -355,10 +355,12 @@ export function pertinente(evento, nomeCercato) {
   if (!cercato) return false;
   if (artista && artista === cercato) return true;              // artista esatto
   if (cercato.length >= 8 && (titolo.includes(cercato) || artista.includes(cercato))) return true;
-  // nome corto (Anna, Olly, Nitro): solo come PAROLA ISOLATA, mai dentro un'altra
-  // ("jolly the flytrap" non contiene la parola "olly", quindi viene respinto)
-  const parola = new RegExp(`(^| )${cercato.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}( |$)`);
-  return parola.test(artista) || parola.test(titolo);
+  // Nome corto e comune (Anna, Olly, Nitro, Ultimo): accettato solo se APRE il
+  // titolo, perché i titoli hanno forma "Artista - Spettacolo". Così "ANNA - Vera
+  // Baddie Tour" passa, mentre "Ricardo Montaner - El Ultimo Regreso" (che pure
+  // contiene la parola isolata "ultimo") e "Jolly & the Flytrap" vengono respinti.
+  const apre = new RegExp(`^${cercato.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}( |$)`);
+  return apre.test(artista) || apre.test(titolo);
 }
 
 export const FONTI_CATALOGO = {
