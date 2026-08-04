@@ -135,14 +135,22 @@ function caricaWatchlist() {
   }));
 }
 
-// Un evento è "di artista italiano" se l'artista (o il titolo) combacia con la watchlist
+// Un evento è "di artista italiano" solo con un riscontro STRETTO.
+// Il confronto per sottostringa è inaffidabile e va evitato: in prova aveva
+// scambiato "CA7RIEL & Paco Amoroso" per Alessandra Amoroso, "Don Toliver:
+// NITROUS" per Nitro, "Jolly & the Flytrap" per Olly e "El Ultimo Regreso"
+// di Ricardo Montaner per Ultimo. Nomi brevi come Anna, Olly, Asco, Alfa
+// catturano di tutto.
 function trovaArtistaItaliano(ev, watchlist) {
-  const campo = `${norm(ev.artista)} ${norm(ev.nome)}`;
+  const art = norm(ev.artista);
+  const titolo = norm(ev.nome);
   for (const a of watchlist) {
-    for (const k of a.chiavi) {
-      if (!k || k.length < 4) continue;
-      if (campo.includes(k)) return a.nome;
-    }
+    // 1) il campo artista coincide ESATTAMENTE con il nome o un suo alias
+    if (art && a.chiavi.includes(art)) return a.nome;
+    // 2) il nome COMPLETO (mai gli alias brevi) compare nel titolo:
+    //    prende i tributi ("Eine Hommage an Ludovico Einaudi") senza falsi positivi
+    const completo = norm(a.nome);
+    if (completo.length >= 8 && (titolo.includes(completo) || art.includes(completo))) return a.nome;
   }
   return null;
 }
