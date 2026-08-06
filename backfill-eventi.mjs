@@ -117,14 +117,16 @@ async function main() {
   const items = JSON.parse(fs.readFileSync(new URL('./eventi-backfill.json', import.meta.url), 'utf8'));
   console.log(`▶ Backfill eventi ${DRY_RUN ? '(DRY RUN) ' : ''}— ${items.length} eventi in archivio — ${new Date().toISOString()}`);
 
-  // Dedup contro Base44 (nome+data) e nome-solo per sicurezza
+  // Dedup contro Base44 SOLO per nome+data esatta.
+  // NB: a differenza del monitoraggio, qui NON si usa il dedup nome+anno:
+  // in un archivio storico lo stesso artista suona legittimamente più volte
+  // nello stesso anno (es. Pippo Pollina 9 date nel 2011, tournée Branduardi).
+  // Il dedup nome+anno collasserebbe queste date in una sola.
   const esistenti = await base44Eventi();
   const chiaviEsist = new Set();
-  const nomiEsist = new Set();
   for (const e of esistenti) {
     const d = (e.data_inizio || '').slice(0, 10);
     if (e.nome && d) chiaviEsist.add(chiave(e.nome, d));
-    if (e.nome) nomiEsist.add(`${norm(e.nome)}|${(e.data_inizio || '').slice(0, 4)}`); // nome+anno
   }
   console.log(`  già su Base44: ${esistenti.length}`);
 
@@ -134,8 +136,7 @@ async function main() {
     if (n >= LIMIT) break;
     if (!ev.nome || !ev.data_inizio) { saltati++; continue; }
     const k = chiave(ev.nome, ev.data_inizio);
-    const kAnno = `${norm(ev.nome)}|${ev.data_inizio.slice(0, 4)}`;
-    if (chiaviEsist.has(k) || nomiEsist.has(kAnno)) { saltati++; continue; }
+    if (chiaviEsist.has(k)) { saltati++; continue; }
     n++;
 
     const passato = ev.data_inizio.slice(0, 10) < oggi;
@@ -172,8 +173,8 @@ async function main() {
       const body = raw.data && typeof raw.data === 'object' ? raw.data : raw;
       const b44obj = { ...body, ...payload, id: body.id };
       if (!b44obj.id) throw new Error('Base44 non ha restituito un id');
-      // aggiorna gli indici di dedup per evitare doppioni nello stesso giro
-      chiaviEsist.add(k); nomiEsist.add(kAnno);
+      // aggiorna l'indice di dedup (nome+data) per evitare doppioni nello stesso giro
+      chiaviEsist.add(k);
       creati++;
       try { await supaUpsert(b44obj); } catch (e) { mirrorFail++; console.error(`    mirror KO: ${e.message}`); }
       if (creati % 25 === 0) console.log(`  … creati ${creati}`);
