@@ -441,8 +441,8 @@
   "luogo": "Tägi",
   "venue": "Wettingen",
   "paese": "Svizzera",
-  "poster_url": "https://news.tuttoitalia.ch/eventi/Papi_Ultras.jpg",
-  "immagine_url": "https://news.tuttoitalia.ch/eventi/Papi_Ultras.jpg",
+  "poster_url": null,
+  "immagine_url": null,
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
@@ -471,8 +471,8 @@
   "luogo": "Zurigo presenta",
   "venue": "Escherwyss Club",
   "paese": "Svizzera",
-  "poster_url": "https://news.tuttoitalia.ch/eventi/Foto_Evento_Tuttoitalia_07.05.10.jpg",
-  "immagine_url": "https://news.tuttoitalia.ch/eventi/Foto_Evento_Tuttoitalia_07.05.10.jpg",
+  "poster_url": null,
+  "immagine_url": null,
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
@@ -501,8 +501,8 @@
   "luogo": "Fevi di Locarno",
   "venue": null,
   "paese": "Svizzera",
-  "poster_url": "https://news.tuttoitalia.ch/eventi/Website.jpg",
-  "immagine_url": "https://news.tuttoitalia.ch/eventi/Website.jpg",
+  "poster_url": null,
+  "immagine_url": null,
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
@@ -576,8 +576,8 @@
   "luogo": "Zurigo",
   "venue": "Kongresshaus",
   "paese": "Svizzera",
-  "poster_url": "https://news.tuttoitalia.ch/eventi/Website.jpg",
-  "immagine_url": "https://news.tuttoitalia.ch/eventi/Website.jpg",
+  "poster_url": null,
+  "immagine_url": null,
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
@@ -606,8 +606,8 @@
   "luogo": "Losanna",
   "venue": "Theatre de Beaulieu",
   "paese": "Svizzera",
-  "poster_url": "https://news.tuttoitalia.ch/eventi/Website.jpg",
-  "immagine_url": "https://news.tuttoitalia.ch/eventi/Website.jpg",
+  "poster_url": null,
+  "immagine_url": null,
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
@@ -651,8 +651,8 @@
   "luogo": "Basilea",
   "venue": "Stadt Casino",
   "paese": "Svizzera",
-  "poster_url": "https://news.tuttoitalia.ch/eventi/Website.jpg",
-  "immagine_url": "https://news.tuttoitalia.ch/eventi/Website.jpg",
+  "poster_url": null,
+  "immagine_url": null,
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
@@ -771,8 +771,8 @@
   "luogo": "Schinzenhof di Horgen (ZH)",
   "venue": null,
   "paese": "Svizzera",
-  "poster_url": "https://news.tuttoitalia.ch/eventi/Website.jpg",
-  "immagine_url": "https://news.tuttoitalia.ch/eventi/Website.jpg",
+  "poster_url": null,
+  "immagine_url": null,
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
@@ -2130,7 +2130,7 @@
   "seo_description": "Vinicio Capossela · Volkshaus · Zurigo · 2012-05-08"
  },
  {
-  "nome": "Lugano In Scena presenta",
+  "nome": "Fiorella Mannoia",
   "data_inizio": "2012-05-12",
   "orario_inizio_evento": "20:30",
   "luogo": "Lugano",
@@ -2141,11 +2141,11 @@
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
-  "seo_title": "Lugano In Scena presenta",
-  "seo_description": "Lugano In Scena presenta · Palazzo dei Congressi · Lugano · 2012-05-12"
+  "seo_title": "Fiorella Mannoia",
+  "seo_description": "Fiorella Mannoia · Palazzo dei Congressi · Lugano · 2012-05-12"
  },
  {
-  "nome": "Lugano In Scena presenta",
+  "nome": "Memorie di Adriano",
   "data_inizio": "2012-05-15",
   "orario_inizio_evento": "20:00",
   "luogo": "Lugano",
@@ -2156,8 +2156,8 @@
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
-  "seo_title": "Lugano In Scena presenta",
-  "seo_description": "Lugano In Scena presenta · Palazzo dei Congressi · Lugano · 2012-05-15"
+  "seo_title": "Memorie di Adriano",
+  "seo_description": "Memorie di Adriano · Palazzo dei Congressi · Lugano · 2012-05-15"
  },
  {
   "nome": "Pino Daniele",
@@ -2220,7 +2220,7 @@
   "seo_description": "Tiziano Ferro · Hallenstadion · Zurigo · 2012-05-23"
  },
  {
-  "nome": "Lugano In Scena presenta",
+  "nome": "Pino Daniele",
   "data_inizio": "2012-05-26",
   "orario_inizio_evento": "20:30",
   "luogo": "Lugano",
@@ -2231,8 +2231,8 @@
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
-  "seo_title": "Lugano In Scena presenta",
-  "seo_description": "Lugano In Scena presenta · Palazzo dei Congressi · Lugano · 2012-05-26"
+  "seo_title": "Pino Daniele",
+  "seo_description": "Pino Daniele · Palazzo dei Congressi · Lugano · 2012-05-26"
  },
  {
   "nome": "Nomadi",
@@ -2250,7 +2250,7 @@
   "seo_description": "Nomadi · Piazzale Cochi · Novazzano · 2012-06-02"
  },
  {
-  "nome": "Moon&Stars 2012 presenta",
+  "nome": "Ligabue e Pino Daniele",
   "data_inizio": "2012-07-05",
   "orario_inizio_evento": "20:30",
   "luogo": "Locarno",
@@ -2261,11 +2261,11 @@
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
-  "seo_title": "Moon&Stars 2012 presenta",
-  "seo_description": "Moon&Stars 2012 presenta · Piazza Grande · Locarno · 2012-07-05"
+  "seo_title": "Ligabue e Pino Daniele",
+  "seo_description": "Ligabue e Pino Daniele · Piazza Grande · Locarno · 2012-07-05"
  },
  {
-  "nome": "Moon&Stars 2012 presenta",
+  "nome": "Laura Pausini",
   "data_inizio": "2012-07-14",
   "orario_inizio_evento": "20:30",
   "luogo": "Locarno",
@@ -2276,8 +2276,8 @@
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
-  "seo_title": "Moon&Stars 2012 presenta",
-  "seo_description": "Moon&Stars 2012 presenta · Piazza Grande · Locarno · 2012-07-14"
+  "seo_title": "Laura Pausini",
+  "seo_description": "Laura Pausini · Piazza Grande · Locarno · 2012-07-14"
  },
  {
   "nome": "Pippo Pollina",
@@ -2415,7 +2415,7 @@
   "seo_description": "Finley · Arena Live · Mendrisio · 2012-11-24"
  },
  {
-  "nome": "Christmas Sessions presenta",
+  "nome": "Toto Cutugno",
   "data_inizio": "2012-12-09",
   "orario_inizio_evento": "20:00",
   "luogo": "Bienna",
@@ -2426,8 +2426,8 @@
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
-  "seo_title": "Christmas Sessions presenta",
-  "seo_description": "Christmas Sessions presenta · Théâtre du Palace · Bienna · 2012-12-09"
+  "seo_title": "Toto Cutugno",
+  "seo_description": "Toto Cutugno · Théâtre du Palace · Bienna · 2012-12-09"
  },
  {
   "nome": "Gianmaria Testa Trio",
@@ -2445,7 +2445,7 @@
   "seo_description": "Gianmaria Testa Trio · Teatro Casino · Zugo · 2012-12-11"
  },
  {
-  "nome": "Manor presenta",
+  "nome": "Viva Verdi",
   "data_inizio": "2012-12-13",
   "orario_inizio_evento": "19:30",
   "luogo": "ore 19.30",
@@ -2456,8 +2456,8 @@
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
-  "seo_title": "Manor presenta",
-  "seo_description": "Manor presenta · venerdì 14 dicembre · ore 19.30 · 2012-12-13"
+  "seo_title": "Viva Verdi",
+  "seo_description": "Viva Verdi · venerdì 14 dicembre · ore 19.30 · 2012-12-13"
  },
  {
   "nome": "Benny Benassi",
@@ -2835,7 +2835,7 @@
   "seo_description": "Antonello Venditti · Piazza Grande · Locarno · 2013-06-01"
  },
  {
-  "nome": "JazzAscona presenta",
+  "nome": "Mario Biondi",
   "data_inizio": "2013-06-23",
   "orario_inizio_evento": null,
   "luogo": "Ascona",
@@ -2846,8 +2846,8 @@
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
-  "seo_title": "JazzAscona presenta",
-  "seo_description": "JazzAscona presenta · Main Tent · Ascona · 2013-06-23"
+  "seo_title": "Mario Biondi",
+  "seo_description": "Mario Biondi · Main Tent · Ascona · 2013-06-23"
  },
  {
   "nome": "Raphael Gualazzi",
@@ -2865,7 +2865,7 @@
   "seo_description": "Raphael Gualazzi · Théâtre du Jorat · Ginevra · 2013-06-23"
  },
  {
-  "nome": "JazzAscona presenta",
+  "nome": "Ornella Vanoni",
   "data_inizio": "2013-06-25",
   "orario_inizio_evento": null,
   "luogo": "Ascona",
@@ -2876,8 +2876,8 @@
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
-  "seo_title": "JazzAscona presenta",
-  "seo_description": "JazzAscona presenta · Main Tent · Ascona · 2013-06-25"
+  "seo_title": "Ornella Vanoni",
+  "seo_description": "Ornella Vanoni · Main Tent · Ascona · 2013-06-25"
  },
  {
   "nome": "Al Bano",
@@ -2895,7 +2895,7 @@
   "seo_description": "Al Bano · Linth-Arena Sgu · Näfels · 2013-06-29"
  },
  {
-  "nome": "47th Montreux Jazz Festival presenta",
+  "nome": "Paolo Conte",
   "data_inizio": "2013-07-08",
   "orario_inizio_evento": "20:00",
   "luogo": "Montreux",
@@ -2906,11 +2906,11 @@
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
-  "seo_title": "47th Montreux Jazz Festival presenta",
-  "seo_description": "47th Montreux Jazz Festival presenta · Auditorium Stravinski · Montreux · 2013-07-08"
+  "seo_title": "Paolo Conte",
+  "seo_description": "Paolo Conte · Auditorium Stravinski · Montreux · 2013-07-08"
  },
  {
-  "nome": "Moon&Stars 4-14 luglio 2013 presenta",
+  "nome": "Zucchero",
   "data_inizio": "2013-07-10",
   "orario_inizio_evento": "20:30",
   "luogo": "Locarno",
@@ -2921,11 +2921,11 @@
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
-  "seo_title": "Moon&Stars 4-14 luglio 2013 presenta",
-  "seo_description": "Moon&Stars 4-14 luglio 2013 presenta · Piazza Grande · Locarno · 2013-07-10"
+  "seo_title": "Zucchero",
+  "seo_description": "Zucchero · Piazza Grande · Locarno · 2013-07-10"
  },
  {
-  "nome": "Live at Sunset presenta",
+  "nome": "Gianna Nannini",
   "data_inizio": "2013-07-21",
   "orario_inizio_evento": "20:30",
   "luogo": "Zurigo",
@@ -2936,8 +2936,8 @@
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
-  "seo_title": "Live at Sunset presenta",
-  "seo_description": "Live at Sunset presenta · Dolder · Zurigo · 2013-07-21"
+  "seo_title": "Gianna Nannini",
+  "seo_description": "Gianna Nannini · Dolder · Zurigo · 2013-07-21"
  },
  {
   "nome": "Aida - Festival La Perla",
@@ -3360,7 +3360,7 @@
   "seo_description": "Negramaro · Piazza Grande · Locarno · 2014-07-17"
  },
  {
-  "nome": "al 20.12.2013 Enrico Brignano",
+  "nome": "Enrico Brignano",
   "data_inizio": "2014-07-29",
   "orario_inizio_evento": "21:00",
   "luogo": "Bellinzona",
@@ -3371,8 +3371,8 @@
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
-  "seo_title": "al 20.12.2013 Enrico Brignano",
-  "seo_description": "al 20.12.2013 Enrico Brignano · Castelgrande · Bellinzona · 2014-07-29"
+  "seo_title": "Enrico Brignano",
+  "seo_description": "Enrico Brignano · Castelgrande · Bellinzona · 2014-07-29"
  },
  {
   "nome": "Franco Battiato",
@@ -3435,7 +3435,7 @@
   "seo_description": "Pucci · Palazzo dei Congressi · Lugano · 2014-10-04"
  },
  {
-  "nome": "Sinapsi e Tuttoitalia presentano",
+  "nome": "Con Verdi nel Mondo",
   "data_inizio": "2014-10-09",
   "orario_inizio_evento": "19:30",
   "luogo": "Ginevra",
@@ -3446,8 +3446,8 @@
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
-  "seo_title": "Sinapsi e Tuttoitalia presentano",
-  "seo_description": "Sinapsi e Tuttoitalia presentano · Palazzo delle Nazioni Unite · Ginevra · 2014-10-09"
+  "seo_title": "Con Verdi nel Mondo",
+  "seo_description": "Con Verdi nel Mondo · Palazzo delle Nazioni Unite · Ginevra · 2014-10-09"
  },
  {
   "nome": "Kalàscima",
@@ -3465,7 +3465,7 @@
   "seo_description": "Kalàscima · Borromäum Saal · Basilea · 2014-10-11"
  },
  {
-  "nome": "Voices on Top presenta",
+  "nome": "Luca Carboni",
   "data_inizio": "2014-10-11",
   "orario_inizio_evento": "21:00",
   "luogo": "Pontresina",
@@ -3476,8 +3476,8 @@
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
-  "seo_title": "Voices on Top presenta",
-  "seo_description": "Voices on Top presenta · Kulturzentrum Rondo · Pontresina · 2014-10-11"
+  "seo_title": "Luca Carboni",
+  "seo_description": "Luca Carboni · Kulturzentrum Rondo · Pontresina · 2014-10-11"
  },
  {
   "nome": "Noemi",
@@ -3585,7 +3585,7 @@
   "seo_description": "Francesco De Gregori · Volkshaus · Zurigo · 2014-11-07"
  },
  {
-  "nome": "Gente di Mare presenta",
+  "nome": "Sud Sound System",
   "data_inizio": "2014-11-08",
   "orario_inizio_evento": "21:00",
   "luogo": "Zurigo",
@@ -3596,8 +3596,8 @@
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
-  "seo_title": "Gente di Mare presenta",
-  "seo_description": "Gente di Mare presenta · Komplex 457 · Zurigo · 2014-11-08"
+  "seo_title": "Sud Sound System",
+  "seo_description": "Sud Sound System · Komplex 457 · Zurigo · 2014-11-08"
  },
  {
   "nome": "Antonio Casanova",
@@ -3615,7 +3615,7 @@
   "seo_description": "Antonio Casanova · Palazzo dei Congressi · Lugano · 2014-11-16"
  },
  {
-  "nome": "Colonia Italiana di Zugo presenta 10 anni di",
+  "nome": "Notte Italiana",
   "data_inizio": "2014-11-22",
   "orario_inizio_evento": "22:00",
   "luogo": "Rotkreuz",
@@ -3626,8 +3626,8 @@
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
-  "seo_title": "Colonia Italiana di Zugo presenta 10 anni di",
-  "seo_description": "Colonia Italiana di Zugo presenta 10 anni di · Dorfmarhalle · Rotkreuz · 2014-11-22"
+  "seo_title": "Notte Italiana",
+  "seo_description": "Notte Italiana · Dorfmarhalle · Rotkreuz · 2014-11-22"
  },
  {
   "nome": "Raphael Gualazzi",
@@ -4086,8 +4086,8 @@
   "luogo": "Lugano",
   "venue": "Palazzo dei Congressi",
   "paese": "Svizzera",
-  "poster_url": "https://news.tuttoitalia.ch/eventi/Bottone_fonte.gif",
-  "immagine_url": "https://news.tuttoitalia.ch/eventi/Bottone_fonte.gif",
+  "poster_url": null,
+  "immagine_url": null,
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
@@ -5280,7 +5280,7 @@
   "seo_description": "Marco Mengoni · Resega · Lugano · 2016-11-14"
  },
  {
-  "nome": "2 Gemelli Diversi",
+  "nome": "Gemelli Diversi",
   "data_inizio": "2016-11-25",
   "orario_inizio_evento": "22:00",
   "luogo": "Dübendorf",
@@ -5291,8 +5291,8 @@
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
-  "seo_title": "2 Gemelli Diversi",
-  "seo_description": "2 Gemelli Diversi · P1 Club · Dübendorf · 2016-11-25"
+  "seo_title": "Gemelli Diversi",
+  "seo_description": "Gemelli Diversi · P1 Club · Dübendorf · 2016-11-25"
  },
  {
   "nome": "Al Bano",
@@ -5445,7 +5445,7 @@
   "seo_description": "Emis Killa · Komplex 457 · Zurigo · 2017-02-04"
  },
  {
-  "nome": "(data spostata)",
+  "nome": "Jack Savoretti",
   "data_inizio": "2017-02-06",
   "orario_inizio_evento": "20:00",
   "luogo": "Zürich",
@@ -5456,8 +5456,8 @@
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
-  "seo_title": "(data spostata)",
-  "seo_description": "(data spostata) · X-Tra · Zürich · 2017-02-06"
+  "seo_title": "Jack Savoretti",
+  "seo_description": "Jack Savoretti · X-Tra · Zürich · 2017-02-06"
  },
  {
   "nome": "Marco Carta",
@@ -5640,7 +5640,7 @@
   "seo_description": "Pippo Pollina · Tonhalle · San Gallo · 2017-03-18"
  },
  {
-  "nome": "Bella Zio presenta",
+  "nome": "Sfera Ebbasta",
   "data_inizio": "2017-03-25",
   "orario_inizio_evento": "22:00",
   "luogo": "Zurigo",
@@ -5651,8 +5651,8 @@
   "categoria": "Concerto",
   "is_sold_out": false,
   "stato_override": null,
-  "seo_title": "Bella Zio presenta",
-  "seo_description": "Bella Zio presenta · Komplex 457 · Zurigo · 2017-03-25"
+  "seo_title": "Sfera Ebbasta",
+  "seo_description": "Sfera Ebbasta · Komplex 457 · Zurigo · 2017-03-25"
  },
  {
   "nome": "Gianna Nannini",
