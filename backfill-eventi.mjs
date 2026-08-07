@@ -114,7 +114,8 @@ const chiave = (nome, dataIso) => `${norm(nome)}|${(dataIso || '').slice(0, 10)}
 
 async function main() {
   const oggi = new Date().toISOString().slice(0, 10);
-  const items = JSON.parse(fs.readFileSync(new URL('./eventi-backfill.json', import.meta.url), 'utf8'));
+  const FILE = process.env.BACKFILL_FILE || './eventi-backfill.json';
+  const items = JSON.parse(fs.readFileSync(new URL(FILE, import.meta.url), 'utf8'));
   console.log(`▶ Backfill eventi ${DRY_RUN ? '(DRY RUN) ' : ''}— ${items.length} eventi in archivio — ${new Date().toISOString()}`);
 
   // Dedup contro Base44 SOLO per nome+data esatta.
