@@ -1,0 +1,36 @@
+name: Fatture ricorrenti
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # ogni giorno alle 06:00 UTC (~07/08 in Svizzera). Basta 1 volta al giorno.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Prova senza generare (true = solo anteprima, false = reale)"
+        default: 'false'
+        required: false
+
+jobs:
+  fatture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Genera le fatture ricorrenti in scadenza
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::Secret CRON_SECRET mancante nel repo."
+            exit 1
+          fi
+          URL="https://my.tuttoitalia.ch/api/admin/cron/fatture-ricorrenti"
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then URL="$URL?dry_run=true"; fi
+          echo "GET $URL"
+          code=$(curl -s --max-time 120 -o resp.json -w "%{http_code}" -H "Authorization: Bearer $CRON_SECRET" "$URL")
+          echo "HTTP $code"
+          cat resp.json || true
+          echo
+          if [ "$code" != "200" ]; then
+            echo "::error::Chiamata fallita (HTTP $code)."
+            exit 1
+          fi
