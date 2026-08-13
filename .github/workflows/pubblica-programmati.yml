@@ -1,0 +1,36 @@
+name: Pubblica articoli programmati
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Prova senza pubblicare (true = solo elenco, false = reale)"
+        default: 'false'
+        required: false
+
+jobs:
+  pubblica:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Chiama il cron di pubblicazione
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::Secret CRON_SECRET mancante nel repo."
+            exit 1
+          fi
+          URL="https://my.tuttoitalia.ch/api/admin/cron/pubblica-programmati"
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then URL="$URL?dry_run=true"; fi
+          echo "GET $URL"
+          code=$(curl -s --max-time 300 -o resp.json -w "%{http_code}" -H "Authorization: Bearer $CRON_SECRET" "$URL")
+          echo "HTTP $code"
+          cat resp.json || true
+          echo
+          if [ "$code" != "200" ]; then
+            echo "::error::Chiamata fallita (HTTP $code). Controlla che CRON_SECRET sia uguale a quello su Vercel."
+            exit 1
+          fi
