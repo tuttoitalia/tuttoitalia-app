@@ -118,16 +118,69 @@ const supaHeaders = {
   'Content-Type': 'application/json',
 };
 
+// PostgREST restituisce al massimo 1000 righe per volta: senza paginazione gli
+// eventi oltre il millesimo risultavano "spariti da Base44" e venivano cancellati.
+async function fetchPaginato(query) {
+  const PASSO = 1000;
+  const righe = [];
+  for (let da = 0; ; da += PASSO) {
+    const r = await fetch(`${SUPA_URL}/rest/v1/events?${query}`, {
+      headers: { ...supaHeaders, 'Range-Unit': 'items', Range: `${da}-${da + PASSO - 1}` },
+    });
+    if (!r.ok) throw new Error(`Supabase fetch ${r.status}: ${await r.text()}`);
+    const blocco = await r.json();
+    righe.push(...blocco);
+    if (blocco.length < PASSO) break;
+  }
+  return righe;
+}
+
 async function fetchSupabaseSyncedIds() {
   console.log('→ Fetching existing synced events from Supabase...');
-  const r = await fetch(
-    `${SUPA_URL}/rest/v1/events?select=base44_id&deleted_at=is.null&base44_id=not.is.null`,
-    { headers: supaHeaders }
-  );
-  if (!r.ok) throw new Error(`Supabase fetch ${r.status}: ${await r.text()}`);
-  const rows = await r.json();
+  const rows = await fetchPaginato('select=base44_id&deleted_at=is.null&base44_id=not.is.null');
   console.log(`  ✓ Found ${rows.length} active synced events`);
   return new Set(rows.map((r) => r.base44_id).filter(Boolean));
+}
+
+// Stesso nome, stesso giorno, stessa ora, stesso posto = stesso evento.
+// Deve restare identico a chiaveEvento() in tuttoitalia-platform/src/lib/eventi-doppioni.ts
+function chiaveEvento(e) {
+  const pulisci = (s) =>
+    String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, ' ').trim();
+  const quando = String(e.date ?? '').slice(0, 16);
+  const dove = pulisci(e.venue) || pulisci(e.location);
+  return `${pulisci(e.title)}|${quando}|${e.orario ?? ''}|${dove}`;
+}
+
+// Eventi già presenti in Supabase, per chiave: serve a non ricaricare due volte
+// lo stesso evento quando Base44 lo ripropone con un id nuovo.
+async function fetchChiaviEsistenti() {
+  const rows = await fetchPaginato('select=base44_id,title,date,orario,venue,location&deleted_at=is.null');
+  const mappa = new Map();
+  for (const r of rows) if (!mappa.has(chiaveEvento(r))) mappa.set(chiaveEvento(r), r.base44_id ?? null);
+  return mappa;
+}
+
+// Toglie dal lotto i doppioni: quelli ripetuti dentro Base44 stesso e quelli che
+// in Supabase esistono già sotto un altro base44_id.
+function scartaDoppioni(mappati, esistenti) {
+  const viste = new Set();
+  const tenuti = [];
+  let scartati = 0;
+  for (const e of mappati) {
+    const k = chiaveEvento(e);
+    const gia = esistenti.get(k);
+    if (viste.has(k) || (esistenti.has(k) && gia !== e.base44_id)) {
+      scartati++;
+      console.log(`  · doppione saltato: ${e.title} — ${e.date} ${e.orario ?? ''}`.trimEnd());
+      continue;
+    }
+    viste.add(k);
+    tenuti.push(e);
+  }
+  if (scartati) console.log(`  ✓ ${scartati} doppioni non caricati`);
+  return tenuti;
 }
 
 async function upsertChunk(chunk) {
@@ -170,8 +223,9 @@ async function main() {
 
   const supaSyncedIds = await fetchSupabaseSyncedIds();
 
-  console.log(`→ Upserting ${b44Events.length} events into Supabase...`);
-  const mapped = b44Events.map(mapEvent);
+  const esistenti = await fetchChiaviEsistenti();
+  const mapped = scartaDoppioni(b44Events.map(mapEvent), esistenti);
+  console.log(`→ Upserting ${mapped.length} events into Supabase...`);
   const CHUNK = 100;
   for (let i = 0; i < mapped.length; i += CHUNK) {
     const chunk = mapped.slice(i, i + CHUNK);
