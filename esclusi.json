@@ -1,0 +1,35 @@
+{
+  "_nota": "Esclusioni permanenti del monitor eventi. 'artisti' = confronto esatto sul nome artista normalizzato; 'titoli' = sottostringa nel titolo normalizzato. Aggiungere qui quando un evento non pertinente continua a rientrare. Il monitor consulta anche gli eventi soft-deleted su Supabase, quindi di norma basta cancellare l'evento dal calendario.",
+
+  "artisti": [
+    "Anna Rossinelli",
+    "Anna Lipiak",
+    "Anna Netrebko",
+    "Anna Mae",
+    "Blanco White",
+    "Clara Dietlin",
+    "Clara Loesel",
+    "Clara Lösel",
+    "Madame Pylinska",
+    "Noemi Beza",
+    "Asco"
+  ],
+
+  "titoli": [
+    "anna lipiak",
+    "anna rossinelli",
+    "anna netrebko",
+    "anna mae",
+    "blanco white",
+    "clara dietlin",
+    "clara losel",
+    "madame pylinska",
+    "noemi beza",
+    "symphony of c",
+    "scheherazade",
+    "trigger concert big band",
+    "broadway celebration",
+    "zuri wiesn",
+    "champagner paket"
+  ]
+}

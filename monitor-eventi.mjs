@@ -16,7 +16,7 @@
 import fs from 'node:fs';
 import {
   FONTI_CATALOGO, FONTI_WATCHLIST, pertinente, cittaSvizzera,
-  fetchT, withRetry,
+  mononomeIsolato, isPacchetto, fetchT, withRetry,
 } from './fonti.mjs';
 
 const B44_APP_ID = process.env.BASE44_APP_ID;
@@ -151,7 +151,71 @@ function trovaArtistaItaliano(ev, watchlist) {
     //    prende i tributi ("Eine Hommage an Ludovico Einaudi") senza falsi positivi
     const completo = norm(a.nome);
     if (completo.length >= 8 && (titolo.includes(completo) || art.includes(completo))) return a.nome;
+    // 3) mononome corto: solo se resta ISOLATO nel titolo grezzo, altrimenti la
+    //    parola che segue è un cognome e l'artista è un omonimo qualsiasi
+    //    ("Anna Lipiak", "Blanco White", "Clara Lösel"). Vedi mononomeIsolato.
+    if (completo.length < 8 && (mononomeIsolato(a.nome, ev.artista) || mononomeIsolato(a.nome, ev.nome))) return a.nome;
   }
+  return null;
+}
+
+// ─── Esclusioni permanenti ────────────────────────────────────
+// Un evento cancellato a mano dal calendario NON deve tornare al giro dopo.
+// Prima mancava del tutto: il dedup guardava solo ciò che era presente su
+// Base44, quindi ogni cancellazione veniva annullata entro un'ora. Risultato
+// reale: "Anna Lipiak - Klavier" ricreato 4 volte, 22 eventi rimessi online
+// dopo che Cirano li aveva tolti.
+//
+// Due fonti di verità, entrambe consultate prima di creare:
+//  a) esclusi.json      — pattern espliciti (artisti omonimi, rassegne indesiderate)
+//  b) Supabase deleted_at — ogni evento sparito da Base44 viene soft-deleted dal
+//     sync notturno: è il registro automatico di ciò che è stato cancellato.
+const chiaveBlocco = (nome, data) => `${norm(nome)}|${(data || '').slice(0, 10)}`;
+
+function caricaEsclusi() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(new URL('./esclusi.json', import.meta.url), 'utf8'));
+    return {
+      artisti: (raw.artisti || []).map(norm).filter(Boolean),
+      titoli: (raw.titoli || []).map(norm).filter(Boolean),
+    };
+  } catch {
+    return { artisti: [], titoli: [] };
+  }
+}
+
+async function blocklistSupabase() {
+  const chiavi = new Set();
+  const titoli = new Set();
+  try {
+    const r = await withRetry(() => fetchT(
+      `${SUPA_URL}/rest/v1/events?select=title,date&deleted_at=not.is.null`,
+      { headers: supaHeaders },
+    ), 'Supabase blocklist');
+    if (!r.ok) throw new Error(`${r.status}`);
+    for (const e of await r.json()) {
+      if (!e.title) continue;
+      chiavi.add(chiaveBlocco(e.title, e.date));
+      titoli.add(norm(e.title));
+    }
+  } catch (e) {
+    // Senza blocklist si rischia di resuscitare eventi cancellati: meglio
+    // saltare il giro che rifare il danno.
+    throw new Error(`blocklist non leggibile, giro annullato: ${e.message}`);
+  }
+  return { chiavi, titoli };
+}
+
+// L'evento è escluso se: stessa coppia titolo+data già cancellata, oppure lo
+// stesso titolo è stato cancellato altrove (la fonte cambia il nome fra un giro
+// e l'altro — "The Best of Ennio Morricone" / "The best of Ennio Morricone
+// 2027" — e il confronto per sola data lasciava passare il doppione).
+function escluso(ev, artista, blocco, esclusi) {
+  const nome = norm(ev.nome);
+  if (blocco.chiavi.has(chiaveBlocco(ev.nome, ev.dataIso))) return 'già cancellato (stessa data)';
+  if (blocco.titoli.has(nome)) return 'già cancellato (stesso titolo)';
+  if (esclusi.artisti.includes(norm(artista))) return 'artista in esclusi.json';
+  if (esclusi.titoli.some((t) => nome.includes(t))) return 'titolo in esclusi.json';
   return null;
 }
 
@@ -231,23 +295,34 @@ async function main() {
   const { perNome, perArtistaDataCitta } = chiaviBase44(esistenti);
   console.log(`  Base44: ${esistenti.length} eventi già in calendario`);
 
+  const esclusi = caricaEsclusi();
+  const blocco = await blocklistSupabase();
+  console.log(`  esclusioni: ${blocco.chiavi.size} eventi cancellati a mano + ${esclusi.artisti.length} artisti e ${esclusi.titoli.length} titoli in esclusi.json`);
+
   const { tutti, problemi } = await raccogli(watchlist);
   console.log(`\n  raccolti ${tutti.length} eventi grezzi da ${Object.keys(FONTI_CATALOGO).length + Object.keys(FONTI_WATCHLIST).length} fonti`);
 
   // ── Filtri: artista italiano, fuori dall'Italia, data futura, dati minimi ──
   const visti = new Set();
   const candidati = [];
-  const scarti = { nonItaliano: 0, inItalia: 0, passato: 0, incompleto: 0, giaPresente: 0, doppione: 0 };
+  const scarti = { nonItaliano: 0, inItalia: 0, passato: 0, incompleto: 0, giaPresente: 0, doppione: 0, pacchetto: 0, escluso: 0 };
+  const bloccati = [];
 
   for (const ev of tutti) {
     if (!ev.dataIso || !ev.citta || !ev.nome) { scarti.incompleto++; continue; }
     if (ev.dataIso < oggi) { scarti.passato++; continue; }
+    // pacchetti VIP/hospitality: sono extra di biglietteria, non eventi
+    if (isPacchetto(ev.nome)) { scarti.pacchetto++; continue; }
 
     const artista = ev.artistaWatchlist || trovaArtistaItaliano(ev, watchlist) || (
       // i promoter italiani hanno un roster tutto italiano: mi fido della fonte
       ['vivoconcerti', 'friendsandpartners'].includes(ev.fonte) ? ev.artista : null
     );
     if (!artista) { scarti.nonItaliano++; continue; }
+
+    // cancellato a mano in passato: non si ripropone
+    const motivo = escluso(ev, artista, blocco, esclusi);
+    if (motivo) { scarti.escluso++; bloccati.push(`${ev.nome} (${motivo})`); continue; }
 
     // Il pubblico di Tuttoitalia vive fuori dall'Italia: le date italiane non servono
     const inCH = !!cittaSvizzera(ev.citta) || ev.paese === 'Svizzera';
@@ -263,7 +338,11 @@ async function main() {
 
   candidati.sort((a, b) => (b.inCH - a.inCH) || a.dataIso.localeCompare(b.dataIso));
   console.log(`  candidati NUOVI: ${candidati.length}  (di cui in Svizzera: ${candidati.filter((c) => c.inCH).length})`);
-  console.log(`  scartati -> non italiani:${scarti.nonItaliano} in Italia:${scarti.inItalia} passati:${scarti.passato} incompleti:${scarti.incompleto} già in calendario:${scarti.giaPresente} doppioni:${scarti.doppione}`);
+  console.log(`  scartati -> non italiani:${scarti.nonItaliano} in Italia:${scarti.inItalia} passati:${scarti.passato} incompleti:${scarti.incompleto} già in calendario:${scarti.giaPresente} doppioni:${scarti.doppione} pacchetti:${scarti.pacchetto} esclusi:${scarti.escluso}`);
+  if (bloccati.length) {
+    console.log('  non riproposti perché cancellati a mano:');
+    for (const b of [...new Set(bloccati)].slice(0, 25)) console.log(`    · ${b.slice(0, 90)}`);
+  }
 
   // ── Inserimento ──
   let creati = 0, errori = problemi.length;

@@ -346,6 +346,48 @@ export async function eventfrog(nome) {
 // ATTENZIONE: niente confronti per sottostringa. Cercando "Ultimo" la ricerca
 // restituisce "Ricardo Montaner - El Ultimo Regreso", cercando "Olly" restituisce
 // "Jolly & the Flytrap". Servono il nome intero o una coincidenza esatta.
+// Parole che possono seguire legittimamente un mononome senza cambiarne
+// l'identità: sono titoli di tour o formule di locandina, non cognomi.
+const CODA_INNOCUA = new RegExp(
+  '^(?:' + [
+    'tour', 'live', 'in', 'concerto', 'concert', 'konzert', 'koncert', 'show', 'on',
+    'the', 'il', 'la', 'lo', 'e', 'and', 'con', 'feat', 'featuring', 'open', 'air',
+    'world', 'summer', 'winter', 'tournee', 'tournée', 'festival', 'band', 'trio',
+    'quartet', 'orchestra', 'official', 'presenta', 'presents', 'special', 'guest',
+    'unplugged', 'acustico', 'solo', 'night', 'nights', 'edition', 'anniversario',
+  ].join('|') + ')$', 'i');
+
+// Un mononome corto (Anna, Clara, Blanco, Madame, Pupo…) è ambiguo: è anche un
+// nome proprio qualsiasi. Lo accettiamo solo quando resta DA SOLO nel campo
+// artista del titolo, cioè è seguito da fine stringa, da un separatore, o da
+// parole di coda innocue. Se lo segue un'altra parola "piena", quella è quasi
+// sempre un COGNOME e l'artista è un omonimo:
+//   "ANNA - Vera Baddie Tour"      -> separatore  -> è la rapper ANNA        ✔
+//   "Pupo" / "Arisa"               -> da solo     -> ok                      ✔
+//   "Nomadi live"                  -> coda innocua                           ✔
+//   "Anna Lipiak - Klavier"        -> cognome     -> pianista polacca        ✘
+//   "Anna Rossinelli - Heat Tour"  -> cognome     -> cantautrice svizzera    ✘
+//   "ANNA NETREBKOS Debüt"         -> cognome     -> soprano russa           ✘
+//   "Blanco White (UK)"            -> cognome     -> musicista inglese       ✘
+//   "Clara Dietlin & Kojiro Okada" -> cognome                                ✘
+//   "Madame Pylinska und das Geheimnis von Chopin" -> cognome                ✘
+// Il confronto va fatto sul testo GREZZO: la normalizzazione cancella i
+// separatori, e senza separatori "Anna - Vera" e "Anna Lipiak" sono identici.
+export function mononomeIsolato(nomeCercato, testoGrezzo) {
+  const grezzo = (testoGrezzo || '').toString().trim();
+  if (!grezzo) return false;
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // il nome deve aprire il testo (i titoli hanno forma "Artista - Spettacolo")
+  const apre = new RegExp(`^\\s*${esc(nomeCercato.trim())}\\b`, 'i');
+  if (!apre.test(grezzo)) return false;
+  const coda = grezzo.replace(apre, '').trim();
+  if (!coda) return true;                                   // "Pupo"
+  if (/^[-–—:|,/(\[«"'&+]/.test(coda)) return true;         // "ANNA - Vera Baddie Tour"
+  const primaParola = coda.split(/[\s,]+/)[0] || '';
+  if (/^\d/.test(primaParola)) return true;                 // "Ligabue 2027"
+  return CODA_INNOCUA.test(primaParola);                    // "Nomadi live"
+}
+
 export function pertinente(evento, nomeCercato) {
   const n = (s) => (s || '').toString().toLowerCase().normalize('NFD')
     .replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
@@ -355,12 +397,17 @@ export function pertinente(evento, nomeCercato) {
   if (!cercato) return false;
   if (artista && artista === cercato) return true;              // artista esatto
   if (cercato.length >= 8 && (titolo.includes(cercato) || artista.includes(cercato))) return true;
-  // Nome corto e comune (Anna, Olly, Nitro, Ultimo): accettato solo se APRE il
-  // titolo, perché i titoli hanno forma "Artista - Spettacolo". Così "ANNA - Vera
-  // Baddie Tour" passa, mentre "Ricardo Montaner - El Ultimo Regreso" (che pure
-  // contiene la parola isolata "ultimo") e "Jolly & the Flytrap" vengono respinti.
-  const apre = new RegExp(`^${cercato.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}( |$)`);
-  return apre.test(artista) || apre.test(titolo);
+  // Nome corto: deve restare isolato nel campo artista (vedi mononomeIsolato).
+  return mononomeIsolato(nomeCercato, evento.artista) || mononomeIsolato(nomeCercato, evento.nome);
+}
+
+// Titoli che NON sono un evento ma un extra venduto a parte dalla biglietteria
+// (pacchetti VIP, hospitality, cene, upgrade). Finivano in calendario come se
+// fossero concerti a sé: "20. Züri-Wiesn - Zusätz. Champagner-Paket (1
+// Magnumflasche)", "Eros Ramazzotti - You Are Special Hospitality Package".
+const RE_PACCHETTO = /\b(hospitality|vip[- ]?(package|paket|upgrade)|package|paket|upgrade|zusätz|zusatz|meet\s*&\s*greet|star\s*lounge|starlounge|lounge[- ]ticket|dinner[- ]?paket|parkticket|shuttle)\b/i;
+export function isPacchetto(titolo) {
+  return RE_PACCHETTO.test((titolo || '').toString());
 }
 
 export const FONTI_CATALOGO = {
