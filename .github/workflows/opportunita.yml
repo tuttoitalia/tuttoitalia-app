@@ -1,0 +1,30 @@
+name: Ricerca Opportunità Business
+
+on:
+  schedule:
+    - cron: '0 10 * * *'   # Ogni giorno 10:00 UTC = 12:00 Europe/Zurich (estate). In inverno cade alle 11:00 locali.
+  workflow_dispatch:        # Esecuzione manuale dal tab Actions
+    inputs:
+      dry_run:
+        description: "Prova senza scrivere (1 = dry run, 0 = reale)"
+        default: '0'
+        required: false
+
+jobs:
+  ricerca:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cerca opportunità e scrivi nel pannello
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: node opportunita-search.mjs
