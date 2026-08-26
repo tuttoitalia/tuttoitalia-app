@@ -4,8 +4,13 @@
 // Ogni ora: interroga le piattaforme di ticketing e i promoter,
 // tiene solo gli eventi di ARTISTI ITALIANI che si svolgono FUORI
 // DALL'ITALIA (Svizzera in primis, poi Europa e resto del mondo:
-// è lì che vive il pubblico di Tuttoitalia), li crea su Base44
-// (source of truth) e li rispecchia subito su Supabase.
+// è lì che vive il pubblico di Tuttoitalia).
+//
+// NON pubblica: deposita quello che trova nella coda `eventi_proposti`, che
+// il pannello mostra in "Nuovi eventi da aggiungere". L'evento finisce sul
+// calendario solo quando Cirano lo aggiunge da li'. Prima il monitor creava
+// tutto da se' su Base44, e ogni errore di riconoscimento diventava una scheda
+// pubblica da rincorrere.
 //
 // Env: BASE44_APP_ID, BASE44_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 // Flag: DRY_RUN=1     -> non scrive nulla, mostra solo cosa farebbe
@@ -53,42 +58,6 @@ function toIso(dateStr, timeStr) {
   return `${dateStr.slice(0, 10)}T${t}:00${zurichOffset(dateStr)}`;
 }
 
-// mapEvent: allineata a sync.js (mirror Supabase). Se cambia lì, cambiare qui.
-function mapEvent(b44) {
-  return {
-    base44_id: b44.id,
-    title: clean(b44.nome), date: clean(b44.data_inizio?.slice?.(0, 10)),
-    location: clean(b44.luogo), venue: clean(b44.venue), orario: clean(b44.orario_inizio_evento),
-    descrizione: clean(b44.descrizione), categoria: clean(b44.categoria),
-    dimensione_evento: clean(b44.dimensione_evento),
-    data_inizio_iso: toIso(b44.data_inizio, b44.orario_inizio_evento),
-    data_fine_iso: toIso(b44.data_fine, b44.orario_inizio_evento),
-    orario_apertura_porte: clean(b44.orario_apertura_porte),
-    paese: clean(b44.paese), indirizzo_venue: clean(b44.indirizzo_venue),
-    geo_lat: num(b44.geo_lat), geo_lng: num(b44.geo_lng),
-    stato_evento: clean(b44.stato_evento), attivo: bool(b44.attivo),
-    is_media_partner: bool(b44.is_media_partner) ?? false,
-    in_evidenza: bool(b44.in_evidenza) ?? false,
-    is_sold_out: bool(b44.is_sold_out) ?? false,
-    is_ingresso_libero: bool(b44.is_ingresso_libero) ?? false,
-    is_ultimi_biglietti: bool(b44.is_ultimi_biglietti) ?? false,
-    ticket_url_esterno1: clean(b44.ticket_url_esterno1),
-    ticket_url_esterno2: clean(b44.ticket_url_esterno2),
-    ticket_info_altro: clean(b44.ticket_info_altro),
-    data_inizio_vendita_biglietti: clean(b44.data_inizio_vendita_biglietti),
-    poster_url: clean(b44.poster_url), immagine_url: clean(b44.immagine_url),
-    immagine_header_upload: clean(b44.immagine_header_upload),
-    rating_medio: num(b44.rating_medio), numero_voti: num(b44.numero_voti) ?? 0,
-    contatore_preferiti: num(b44.contatore_preferiti) ?? 0,
-    seo_title: clean(b44.seo_title), seo_description: clean(b44.seo_description),
-    seo_keywords: Array.isArray(b44.seo_keywords) ? b44.seo_keywords : null,
-    sponsor_ids: Array.isArray(b44.sponsor_ids) ? b44.sponsor_ids : null,
-    accetta_candidature: bool(b44.accetta_candidature) ?? false,
-    accetta_sponsor: bool(b44.accetta_sponsor) ?? false,
-    synced_at: new Date().toISOString(), deleted_at: null,
-  };
-}
-
 // ─── Base44 ───────────────────────────────────────────────────
 const B44_URL = `https://base44.app/api/apps/${B44_APP_ID}/entities/Evento`;
 
@@ -101,28 +70,43 @@ async function base44Eventi() {
   }, 'Base44 list');
 }
 
-// NIENTE retry: la POST non è idempotente, un secondo tentativo dopo un timeout
-// ambiguo creerebbe un evento doppio sul calendario pubblico.
-async function base44Create(payload) {
-  const r = await fetchT(B44_URL, {
-    method: 'POST',
-    headers: { api_key: B44_API_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!r.ok) throw new Error(`Base44 create ${r.status}: ${(await r.text()).slice(0, 200)}`);
-  return await r.json();
-}
+// Il monitor non crea piu' eventi su Base44 ne' li rispecchia su Supabase:
+// deposita proposte e basta. La creazione avviene dal pannello, in
+// /api/admin/eventi/proposte, quando la proposta viene aggiunta.
 
 const supaHeaders = { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json' };
-async function supaUpsert(b44obj) {
-  return withRetry(async () => {
-    const r = await fetchT(`${SUPA_URL}/rest/v1/events?on_conflict=base44_id`, {
-      method: 'POST',
-      headers: { ...supaHeaders, Prefer: 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify([mapEvent(b44obj)]),
-    });
-    if (!r.ok) throw new Error(`${r.status}: ${(await r.text()).slice(0, 200)}`);
-  }, 'Supabase upsert');
+
+// ─── Coda delle proposte ──────────────────────────────────────
+// Tutto quello che il monitor trova passa da qui. Le proposte gia' presenti
+// (in qualunque stato: in attesa, aggiunte, scartate) non si ripropongono,
+// altrimenti un evento rifiutato tornerebbe a ogni giro.
+const PROPOSTE_URL = `${SUPA_URL}/rest/v1/eventi_proposti`;
+
+async function chiaviProposte() {
+  const r = await withRetry(() => fetchT(`${PROPOSTE_URL}?select=chiave,stato`, { headers: supaHeaders }), 'lettura proposte');
+  // Tabella non ancora creata: si esce senza pubblicare e senza far fallire il
+  // workflow. Fallire ogni ora manderebbe una mail di errore all'ora; pubblicare
+  // lo stesso tradirebbe il motivo per cui la coda esiste.
+  if (r.status === 404 || r.status === 406) return null;
+  if (!r.ok) throw new Error(`lettura proposte ${r.status}`);
+  const righe = await r.json();
+  const per = { tutte: new Set(), inAttesa: 0 };
+  for (const p of righe) {
+    per.tutte.add(p.chiave);
+    if (p.stato === 'in_attesa') per.inAttesa++;
+  }
+  return per;
+}
+
+async function creaProposte(righe) {
+  // ignoreDuplicates: se due giri si accavallano, la chiave UNIQUE regge e la
+  // seconda insert non fa danni invece di far fallire tutto il lotto.
+  const r = await fetchT(`${PROPOSTE_URL}?on_conflict=chiave`, {
+    method: 'POST',
+    headers: { ...supaHeaders, Prefer: 'resolution=ignore-duplicates,return=minimal' },
+    body: JSON.stringify(righe),
+  });
+  if (!r.ok) throw new Error(`inserimento proposte ${r.status}: ${(await r.text()).slice(0, 200)}`);
 }
 
 // ─── Watchlist ────────────────────────────────────────────────
@@ -392,6 +376,14 @@ async function main() {
   console.log(`  Base44: ${esistenti.length} eventi già in calendario`);
 
   const esclusi = caricaEsclusi();
+  const proposte = await chiaviProposte();
+  if (!proposte) {
+    console.log('\n⚠ La coda non esiste ancora: manca la tabella eventi_proposti.');
+    console.log('  Lanciare schema_eventi_proposti.sql nella console SQL di Supabase.');
+    console.log('  Fino ad allora il monitor non pubblica nulla, per scelta.');
+    return;
+  }
+  console.log(`  coda proposte: ${proposte.tutte.size} gia' viste, ${proposte.inAttesa} in attesa di decisione`);
   const tolti = await registraCancellazioni(esistenti);
   if (tolti) console.log(`  registrate ${tolti} cancellazioni fatte a mano dall'ultimo giro`);
   const blocco = await blocklistSupabase();
@@ -403,7 +395,7 @@ async function main() {
   // ── Filtri: artista italiano, fuori dall'Italia, data futura, dati minimi ──
   const visti = new Set();
   const candidati = [];
-  const scarti = { nonItaliano: 0, inItalia: 0, passato: 0, incompleto: 0, giaPresente: 0, doppione: 0, pacchetto: 0, escluso: 0 };
+  const scarti = { nonItaliano: 0, inItalia: 0, passato: 0, incompleto: 0, giaPresente: 0, doppione: 0, pacchetto: 0, escluso: 0, giaProposto: 0 };
   const bloccati = [];
 
   for (const ev of tutti) {
@@ -431,68 +423,58 @@ async function main() {
     if (visti.has(k)) { scarti.doppione++; continue; }          // doppione fra fonti diverse
     if (perArtistaDataCitta.has(k) || perNome.has(norm(ev.nome))
         || giaInCalendario(ev, perDataCitta)) { scarti.giaPresente++; continue; }
+    // gia' proposto in un giro precedente: in attesa, aggiunto o scartato che sia
+    if (proposte.tutte.has(k)) { scarti.giaProposto++; continue; }
     visti.add(k);
     candidati.push({ ...ev, artista, inCH });
   }
 
   candidati.sort((a, b) => (b.inCH - a.inCH) || a.dataIso.localeCompare(b.dataIso));
   console.log(`  candidati NUOVI: ${candidati.length}  (di cui in Svizzera: ${candidati.filter((c) => c.inCH).length})`);
-  console.log(`  scartati -> non italiani:${scarti.nonItaliano} in Italia:${scarti.inItalia} passati:${scarti.passato} incompleti:${scarti.incompleto} già in calendario:${scarti.giaPresente} doppioni:${scarti.doppione} pacchetti:${scarti.pacchetto} esclusi:${scarti.escluso}`);
+  console.log(`  scartati -> non italiani:${scarti.nonItaliano} in Italia:${scarti.inItalia} passati:${scarti.passato} incompleti:${scarti.incompleto} già in calendario:${scarti.giaPresente} doppioni:${scarti.doppione} pacchetti:${scarti.pacchetto} esclusi:${scarti.escluso} gia' in coda:${scarti.giaProposto}`);
   if (bloccati.length) {
     console.log('  non riproposti perché cancellati a mano:');
     for (const b of [...new Set(bloccati)].slice(0, 25)) console.log(`    · ${b.slice(0, 90)}`);
   }
 
-  // ── Inserimento ──
-  let creati = 0, errori = problemi.length;
+  // ── Deposito in coda ──
+  // Il calendario pubblico non si tocca: qui si scrive solo la proposta.
+  // La creazione su Base44 avviene dal pannello, quando Cirano la aggiunge.
+  let proposti = 0;
+  const errori = problemi.length;
   const perOutreach = [];
 
+  const righe = candidati.map((c) => ({
+    chiave: chiaveEvento(c.artista, c.dataIso, c.citta),
+    nome: c.nome,
+    data_evento: c.dataIso,
+    ora: c.ora || null,
+    citta: c.citta,
+    venue: c.venue || null,
+    paese: c.paese || (c.inCH ? 'Svizzera' : null),
+    descrizione: c.descrizione || null,
+    poster_url: c.img || null,
+    ticket_url: c.ticketUrl || null,
+    artista: c.artista,
+    fonte: c.fonte || null,
+    organizzatore: c.organizzatore || null,
+    geo_lat: c.lat ?? null,
+    geo_lng: c.lon ?? null,
+    in_svizzera: !!c.inCH,
+    stato: 'in_attesa',
+  }));
+
   for (const c of candidati) {
-    const payload = {
-      nome: c.nome,
-      data_inizio: c.dataIso,
-      orario_inizio_evento: c.ora || null,
-      luogo: c.citta,
-      venue: c.venue || null,
-      paese: c.paese || (c.inCH ? 'Svizzera' : null),
-      ticket_url_esterno1: c.ticketUrl || null,
-      poster_url: c.img || null,
-      immagine_url: c.img || null,
-      descrizione: c.descrizione || null,
-      stato_evento: 'Confermato',
-      attivo: true,
-      is_media_partner: false,
-      is_sold_out: !!c.soldOut,
-      geo_lat: c.lat ?? null,
-      geo_lng: c.lon ?? null,
-      seo_title: c.nome,
-      seo_description: [c.nome, c.venue, c.citta, c.dataIso].filter(Boolean).join(' · '),
-    };
-
-    if (DRY_RUN) {
-      console.log(`  ＋ [DRY] ${c.dataIso} | ${c.artista.slice(0, 24).padEnd(24)} | ${(c.citta || '').padEnd(11)} | ${(c.venue || '-').slice(0, 26).padEnd(26)} | ${c.fonte}${c.organizzatore ? ' / ' + c.organizzatore : ''}`);
-      creati++;
-      perOutreach.push({ evento: c.nome, data: c.dataIso, citta: c.citta, organizzatore: c.organizzatore || c.fonte });
-      continue;
-    }
-
-    try {
-      const risposta = await base44Create(payload);
-      const raw = risposta && typeof risposta === 'object' ? risposta : {};
-      const body = raw.data && typeof raw.data === 'object' ? raw.data : raw;
-      const b44obj = { ...body, ...payload, id: body.id };
-      if (!b44obj.id) throw new Error('Base44 non ha restituito un id');
-      creati++;
-      console.log(`  ＋ ${c.dataIso} | ${c.artista} | ${c.citta} | ${c.fonte} — id ${b44obj.id}`);
-      perOutreach.push({ id: b44obj.id, evento: c.nome, data: c.dataIso, citta: c.citta, organizzatore: c.organizzatore || c.fonte });
-      try { await supaUpsert(b44obj); } catch (e) {
-        console.warn(`  ⚠ mirror Supabase fallito (arriverà col sync notturno): ${e.message}`);
-      }
-    } catch (e) {
-      console.error(`  ✗ creazione fallita [${c.nome}]: ${e.message}`);
-      errori++;
-    }
+    console.log(`  ＋${DRY_RUN ? ' [DRY]' : ''} ${c.dataIso} | ${c.artista.slice(0, 24).padEnd(24)} | ${(c.citta || '').padEnd(11)} | ${(c.venue || '-').slice(0, 26).padEnd(26)} | ${c.fonte}${c.organizzatore ? ' / ' + c.organizzatore : ''}`);
+    perOutreach.push({ evento: c.nome, data: c.dataIso, citta: c.citta, organizzatore: c.organizzatore || c.fonte });
   }
+
+  if (righe.length && !DRY_RUN) {
+    // Un lotto solo: o entrano tutte o nessuna, cosi' non restano proposte
+    // a meta' da riconciliare al giro dopo.
+    await creaProposte(righe);
+  }
+  proposti = righe.length;
 
   // ── Riepilogo per l'outreach commerciale ──
   if (perOutreach.length) {
