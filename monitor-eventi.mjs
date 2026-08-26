@@ -486,7 +486,9 @@ async function main() {
     }
   }
 
-  console.log(`\n✓ Fatto — nuovi:${creati} · errori:${errori}`);
+  const inCodaOra = proposte.inAttesa + proposti;
+  console.log(`\n✓ Fatto — proposti:${proposti} · in attesa di decisione:${inCodaOra} · errori:${errori}`);
+  if (inCodaOra) console.log('  da rivedere in my.tuttoitalia.ch/admin/eventi/proposte');
 }
 
 main().catch((e) => { console.error('✗ Fatale:', e.message); process.exit(1); });
