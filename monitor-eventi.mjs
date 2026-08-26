@@ -170,7 +170,16 @@ function trovaArtistaItaliano(ev, watchlist) {
 //  a) esclusi.json      — pattern espliciti (artisti omonimi, rassegne indesiderate)
 //  b) Supabase deleted_at — ogni evento sparito da Base44 viene soft-deleted dal
 //     sync notturno: è il registro automatico di ciò che è stato cancellato.
-const chiaveBlocco = (nome, data) => `${norm(nome)}|${(data || '').slice(0, 10)}`;
+// L'anno va tolto dal titolo prima di confrontare: la stessa fonte pubblica lo
+// stesso concerto ora con l'anno ora senza ("The best of Ennio Morricone" /
+// "The best of Ennio Morricone 2027") e senza questa pulizia il doppione passa.
+const titoloBase = (nome) => norm(String(nome || '').replace(/\b(19|20)\d{2}\b/g, ''));
+const chiaveBlocco = (nome, data) => `${titoloBase(nome)}|${(data || '').slice(0, 10)}`;
+const giorniTra = (a, b) => Math.abs((new Date(a) - new Date(b)) / 86400000);
+// Una rassegna che torna ogni anno (Morricone, i festival) deve poter rientrare
+// con la nuova edizione: il blocco per solo titolo vale entro questa finestra,
+// oltre la quale si presume una nuova edizione e non una riproposta.
+const FINESTRA_BLOCCO_GIORNI = 90;
 
 function caricaEsclusi() {
   try {
@@ -186,7 +195,7 @@ function caricaEsclusi() {
 
 async function blocklistSupabase() {
   const chiavi = new Set();
-  const titoli = new Set();
+  const perTitolo = new Map();   // titolo senza anno -> date in cui è stato cancellato
   try {
     const r = await withRetry(() => fetchT(
       `${SUPA_URL}/rest/v1/events?select=title,date&deleted_at=not.is.null`,
@@ -196,24 +205,37 @@ async function blocklistSupabase() {
     for (const e of await r.json()) {
       if (!e.title) continue;
       chiavi.add(chiaveBlocco(e.title, e.date));
-      titoli.add(norm(e.title));
+      const t = titoloBase(e.title);
+      if (e.date) {
+        if (!perTitolo.has(t)) perTitolo.set(t, []);
+        perTitolo.get(t).push(e.date.slice(0, 10));
+      }
     }
   } catch (e) {
     // Senza blocklist si rischia di resuscitare eventi cancellati: meglio
     // saltare il giro che rifare il danno.
     throw new Error(`blocklist non leggibile, giro annullato: ${e.message}`);
   }
-  return { chiavi, titoli };
+  return { chiavi, perTitolo };
 }
 
-// L'evento è escluso se: stessa coppia titolo+data già cancellata, oppure lo
-// stesso titolo è stato cancellato altrove (la fonte cambia il nome fra un giro
-// e l'altro — "The Best of Ennio Morricone" / "The best of Ennio Morricone
-// 2027" — e il confronto per sola data lasciava passare il doppione).
-function escluso(ev, artista, blocco, esclusi) {
+// Escluso se la stessa coppia titolo+data è già stata cancellata, oppure se lo
+// stesso titolo è stato cancellato per una data vicina: la fonte ripropone lo
+// stesso concerto con il nome leggermente diverso ("The best of Ennio Morricone
+// 2027") o con la data spostata di qualche giorno. Oltre la finestra si assume
+// una nuova edizione — le rassegne annuali devono poter rientrare.
+function escluso(ev, artista, blocco, esclusi, titoliVivi) {
   const nome = norm(ev.nome);
+  const base = titoloBase(ev.nome);
   if (blocco.chiavi.has(chiaveBlocco(ev.nome, ev.dataIso))) return 'già cancellato (stessa data)';
-  if (blocco.titoli.has(nome)) return 'già cancellato (stesso titolo)';
+  // Il blocco largo non vale per una serie che è in calendario di proposito:
+  // "The Best Of Ennio Morricone" è un tour di 14 date volute, di cui alcune
+  // erano state cancellate solo perché doppie. Lì basta il blocco per data
+  // esatta, altrimenti le date nuove del tour non entrerebbero mai più.
+  if (!titoliVivi.has(base)) {
+    const vicine = blocco.perTitolo.get(base) || [];
+    if (vicine.some((d) => giorniTra(d, ev.dataIso) <= FINESTRA_BLOCCO_GIORNI)) return 'già cancellato (stesso titolo, data vicina)';
+  }
   if (esclusi.artisti.includes(norm(artista))) return 'artista in esclusi.json';
   if (esclusi.titoli.some((t) => nome.includes(t))) return 'titolo in esclusi.json';
   return null;
@@ -229,17 +251,24 @@ const chiaveEvento = (artista, dataIso, citta) => `${norm(artista)}|${dataIso}|$
 function chiaviBase44(eventi) {
   const perNome = new Set();
   const perArtistaDataCitta = new Set();
+  const perDataVenue = new Set();
+  const titoliVivi = new Set();   // serie volute in calendario: vedi escluso()
   for (const e of eventi) {
-    if (e.nome) perNome.add(norm(e.nome));
+    if (e.nome) { perNome.add(norm(e.nome)); titoliVivi.add(titoloBase(e.nome)); }
     const d = (e.data_inizio || '').slice(0, 10);
     if (d && e.luogo) {
       perArtistaDataCitta.add(chiaveEvento(e.nome, d, e.luogo));
       // il nome Base44 è spesso "Artista - Titolo": indicizzo anche la sola prima parte
       const primo = String(e.nome || '').split(/[-–—:|]/)[0];
       if (primo) perArtistaDataCitta.add(chiaveEvento(primo, d, e.luogo));
+      // stesso giorno nella stessa sala = stesso evento, comunque sia intitolato.
+      // Serve perché il titolo in calendario può essere stato corretto a mano
+      // (i Morricone sono stati ripuliti da "- Milano Festival Opera / 311") e
+      // il confronto sul nome non riconosce piu' l'evento della fonte.
+      if (e.venue) perDataVenue.add(`${d}|${norm(e.luogo)}|${norm(e.venue)}`);
     }
   }
-  return { perNome, perArtistaDataCitta };
+  return { perNome, perArtistaDataCitta, perDataVenue, titoliVivi };
 }
 
 // ─── Raccolta dalle fonti ─────────────────────────────────────
@@ -292,7 +321,7 @@ async function main() {
   console.log(`  watchlist: ${watchlist.length} artisti italiani`);
 
   const esistenti = await base44Eventi();
-  const { perNome, perArtistaDataCitta } = chiaviBase44(esistenti);
+  const { perNome, perArtistaDataCitta, perDataVenue, titoliVivi } = chiaviBase44(esistenti);
   console.log(`  Base44: ${esistenti.length} eventi già in calendario`);
 
   const esclusi = caricaEsclusi();
@@ -321,7 +350,7 @@ async function main() {
     if (!artista) { scarti.nonItaliano++; continue; }
 
     // cancellato a mano in passato: non si ripropone
-    const motivo = escluso(ev, artista, blocco, esclusi);
+    const motivo = escluso(ev, artista, blocco, esclusi, titoliVivi);
     if (motivo) { scarti.escluso++; bloccati.push(`${ev.nome} (${motivo})`); continue; }
 
     // Il pubblico di Tuttoitalia vive fuori dall'Italia: le date italiane non servono
@@ -331,7 +360,9 @@ async function main() {
 
     const k = chiaveEvento(artista, ev.dataIso, ev.citta);
     if (visti.has(k)) { scarti.doppione++; continue; }          // doppione fra fonti diverse
-    if (perArtistaDataCitta.has(k) || perNome.has(norm(ev.nome))) { scarti.giaPresente++; continue; }
+    const kVenue = ev.venue ? `${ev.dataIso}|${norm(ev.citta)}|${norm(ev.venue)}` : null;
+    if (perArtistaDataCitta.has(k) || perNome.has(norm(ev.nome))
+        || (kVenue && perDataVenue.has(kVenue))) { scarti.giaPresente++; continue; }
     visti.add(k);
     candidati.push({ ...ev, artista, inCH });
   }
