@@ -248,11 +248,22 @@ function escluso(ev, artista, blocco, esclusi, titoliVivi) {
 // artista + data + città.
 const chiaveEvento = (artista, dataIso, citta) => `${norm(artista)}|${dataIso}|${norm(citta)}`;
 
+// Due testi indicano la stessa cosa anche quando uno e' l'inizio dell'altro:
+// la stessa sala figura come "Stadtcasino" e "Stadtcasino Basel", lo stesso
+// concerto come "Angelo Branduardi in DUO con Fabio Valdemarin" e "... -
+// Confessioni di un Malandrino". La soglia evita che titoli generici e brevi
+// ("Carmen") si aggreghino a qualunque cosa cominci allo stesso modo.
+function unoInizioDellAltro(a, b, minimo) {
+  const x = norm(a), y = norm(b);
+  if (!x || !y || x.length < minimo || y.length < minimo) return false;
+  return x === y || x.startsWith(y) || y.startsWith(x);
+}
+
 function chiaviBase44(eventi) {
   const perNome = new Set();
   const perArtistaDataCitta = new Set();
-  const perDataVenue = new Set();
-  const titoliVivi = new Set();   // serie volute in calendario: vedi escluso()
+  const perDataCitta = new Map();   // data|citta -> [{titolo, venue}] gia' in calendario
+  const titoliVivi = new Set();     // serie volute in calendario: vedi escluso()
   for (const e of eventi) {
     if (e.nome) { perNome.add(norm(e.nome)); titoliVivi.add(titoloBase(e.nome)); }
     const d = (e.data_inizio || '').slice(0, 10);
@@ -261,14 +272,23 @@ function chiaviBase44(eventi) {
       // il nome Base44 è spesso "Artista - Titolo": indicizzo anche la sola prima parte
       const primo = String(e.nome || '').split(/[-–—:|]/)[0];
       if (primo) perArtistaDataCitta.add(chiaveEvento(primo, d, e.luogo));
-      // stesso giorno nella stessa sala = stesso evento, comunque sia intitolato.
-      // Serve perché il titolo in calendario può essere stato corretto a mano
-      // (i Morricone sono stati ripuliti da "- Milano Festival Opera / 311") e
-      // il confronto sul nome non riconosce piu' l'evento della fonte.
-      if (e.venue) perDataVenue.add(`${d}|${norm(e.luogo)}|${norm(e.venue)}`);
+      const k = `${d}|${norm(e.luogo)}`;
+      if (!perDataCitta.has(k)) perDataCitta.set(k, []);
+      perDataCitta.get(k).push({ titolo: titoloBase(e.nome), venue: e.venue || '' });
     }
   }
-  return { perNome, perArtistaDataCitta, perDataVenue, titoliVivi };
+  return { perNome, perArtistaDataCitta, perDataCitta, titoliVivi };
+}
+
+// Stesso giorno, stessa citta' e (stessa sala oppure titolo che comincia allo
+// stesso modo) = evento gia' presente. Copre i casi che il confronto sul nome
+// esatto lascia passare: il titolo in calendario corretto a mano (i Morricone
+// ripuliti da "- Milano Festival Opera / 311") e la fonte che aggiunge il
+// sottotitolo dello spettacolo a un evento gia' inserito (i due Branduardi).
+function giaInCalendario(ev, perDataCitta) {
+  const lista = perDataCitta.get(`${ev.dataIso}|${norm(ev.citta)}`) || [];
+  return lista.some((e) => unoInizioDellAltro(e.venue, ev.venue, 4)
+    || unoInizioDellAltro(e.titolo, titoloBase(ev.nome), 12));
 }
 
 // ─── Raccolta dalle fonti ─────────────────────────────────────
@@ -321,7 +341,7 @@ async function main() {
   console.log(`  watchlist: ${watchlist.length} artisti italiani`);
 
   const esistenti = await base44Eventi();
-  const { perNome, perArtistaDataCitta, perDataVenue, titoliVivi } = chiaviBase44(esistenti);
+  const { perNome, perArtistaDataCitta, perDataCitta, titoliVivi } = chiaviBase44(esistenti);
   console.log(`  Base44: ${esistenti.length} eventi già in calendario`);
 
   const esclusi = caricaEsclusi();
@@ -360,9 +380,8 @@ async function main() {
 
     const k = chiaveEvento(artista, ev.dataIso, ev.citta);
     if (visti.has(k)) { scarti.doppione++; continue; }          // doppione fra fonti diverse
-    const kVenue = ev.venue ? `${ev.dataIso}|${norm(ev.citta)}|${norm(ev.venue)}` : null;
     if (perArtistaDataCitta.has(k) || perNome.has(norm(ev.nome))
-        || (kVenue && perDataVenue.has(kVenue))) { scarti.giaPresente++; continue; }
+        || giaInCalendario(ev, perDataCitta)) { scarti.giaPresente++; continue; }
     visti.add(k);
     candidati.push({ ...ev, artista, inCH });
   }
