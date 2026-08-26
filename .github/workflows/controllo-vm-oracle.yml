@@ -41,6 +41,7 @@ jobs:
         if: steps.check.outputs.giu != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           GIU: ${{ steps.check.outputs.giu }}
           PROPRIETARIO: ${{ github.repository_owner }}
         run: |
@@ -66,6 +67,7 @@ jobs:
         if: steps.check.outputs.giu == ''
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           for n in $(gh issue list --state open --label vm-oracle --json number --jq '.[].number'); do
             gh issue close "$n" --comment "Servizi tornati raggiungibili, chiudo."
