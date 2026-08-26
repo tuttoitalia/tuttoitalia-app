@@ -193,6 +193,53 @@ function caricaEsclusi() {
   }
 }
 
+// Registra subito le cancellazioni fatte a mano sul calendario.
+// Senza questo passaggio la blocklist si accorge di una cancellazione solo dopo
+// il sync notturno delle 02:00, e nel frattempo il monitor rimette online
+// l'evento appena tolto: era esattamente il ciclo da cui siamo partiti. Qui il
+// confronto e' immediato: cio' che risulta attivo su Supabase ma non e' piu' su
+// Base44 e' stato cancellato da Cirano, e va marcato prima di decidere cosa creare.
+//
+// Due freni contro il disastro: se la lista Base44 arriva corta (fetch parziale,
+// pagina mancante) sembrerebbero cancellati centinaia di eventi vivi, quindi si
+// procede solo con una lista di dimensione plausibile e con poche sparizioni.
+// Meglio registrare le cancellazioni un giro piu' tardi che svuotare il calendario.
+const MIN_LISTA_SANA = 500;
+const MAX_SPARIZIONI = 40;
+
+async function registraCancellazioni(esistenti) {
+  if (esistenti.length < MIN_LISTA_SANA) {
+    console.warn(`  ⚠ lista Base44 corta (${esistenti.length}): salto il controllo delle cancellazioni`);
+    return 0;
+  }
+  const vivi = new Set(esistenti.map((e) => e.id).filter(Boolean));
+
+  const r = await withRetry(() => fetchT(
+    `${SUPA_URL}/rest/v1/events?select=base44_id,title,date&deleted_at=is.null&base44_id=not.is.null`,
+    { headers: supaHeaders },
+  ), 'Supabase attivi');
+  if (!r.ok) throw new Error(`lettura eventi attivi ${r.status}`);
+  const attivi = await r.json();
+
+  const spariti = attivi.filter((e) => !vivi.has(e.base44_id));
+  if (!spariti.length) return 0;
+  if (spariti.length > MAX_SPARIZIONI) {
+    console.warn(`  ⚠ ${spariti.length} eventi risultano spariti da Base44: troppi per essere cancellazioni manuali, non registro nulla`);
+    return 0;
+  }
+
+  for (const e of spariti) console.log(`  − cancellato dal calendario: ${(e.title || '').slice(0, 60)} (${e.date || 's.d.'})`);
+  if (DRY_RUN) return spariti.length;
+
+  const ids = spariti.map((e) => `"${e.base44_id}"`).join(',');
+  const w = await fetchT(`${SUPA_URL}/rest/v1/events?base44_id=in.(${ids})`, {
+    method: 'PATCH', headers: supaHeaders,
+    body: JSON.stringify({ deleted_at: new Date().toISOString() }),
+  });
+  if (!w.ok) throw new Error(`registrazione cancellazioni ${w.status}: ${(await w.text()).slice(0, 200)}`);
+  return spariti.length;
+}
+
 async function blocklistSupabase() {
   const chiavi = new Set();
   const perTitolo = new Map();   // titolo senza anno -> date in cui è stato cancellato
@@ -345,6 +392,8 @@ async function main() {
   console.log(`  Base44: ${esistenti.length} eventi già in calendario`);
 
   const esclusi = caricaEsclusi();
+  const tolti = await registraCancellazioni(esistenti);
+  if (tolti) console.log(`  registrate ${tolti} cancellazioni fatte a mano dall'ultimo giro`);
   const blocco = await blocklistSupabase();
   console.log(`  esclusioni: ${blocco.chiavi.size} eventi cancellati a mano + ${esclusi.artisti.length} artisti e ${esclusi.titoli.length} titoli in esclusi.json`);
 
