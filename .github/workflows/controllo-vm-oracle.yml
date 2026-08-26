@@ -1,0 +1,67 @@
+name: Controllo VM Oracle
+
+# Verifica che n8n e Listmonk (VM Oracle Always Free) siano vivi.
+# Gira su GitHub, cioe' fuori da Oracle: funziona anche quando le VM sono ferme.
+# Se un servizio non risponde apre una issue; quando torna su, la chiude da sola.
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  controllo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Controlla i due servizi
+        id: check
+        run: |
+          giu=""
+          controlla() {
+            nome="$1"; url="$2"; atteso="$3"
+            for tentativo in 1 2 3; do
+              risposta=$(curl -s --max-time 20 "$url" || true)
+              if echo "$risposta" | grep -q "$atteso"; then
+                echo "OK   $nome ($url)"
+                return 0
+              fi
+              sleep 15
+            done
+            echo "GIU  $nome ($url) - ultima risposta: ${risposta:0:120}"
+            return 1
+          }
+
+          controlla "n8n"      "https://work.tuttoitalia.ch/healthz"      '"status":"ok"' || giu="$giu n8n"
+          controlla "Listmonk" "https://newsletter.tuttoitalia.ch/health" '"data":true'   || giu="$giu Listmonk"
+
+          echo "giu=$(echo $giu | xargs)" >> "$GITHUB_OUTPUT"
+
+      - name: Apri o aggiorna la segnalazione
+        if: steps.check.outputs.giu != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GIU: ${{ steps.check.outputs.giu }}
+        run: |
+          titolo="Servizio non raggiungibile: $GIU"
+          aperta=$(gh issue list --state open --label vm-oracle --json number --jq '.[0].number')
+          corpo=$(printf '%s
+'             "Il controllo automatico non ha ricevuto risposta da: **$GIU**"             ""             "Verificato 3 volte a 15 secondi di distanza, alle $(date -u +'%d/%m/%Y %H:%M') UTC."             ""             "Cosa fare: aprire la console Oracle Cloud, sezione Compute, e controllare se l'istanza risulta fermata (Stopped). In quel caso basta riavviarla: i dati non si perdono e l'indirizzo IP resta lo stesso."             ""             "Questa segnalazione si chiude da sola appena il servizio torna a rispondere.")
+
+          if [ -n "$aperta" ]; then
+            gh issue comment "$aperta" --body "$corpo"
+          else
+            gh issue create --title "$titolo" --label vm-oracle --body "$corpo" --assignee tuttoitalia || \
+            gh issue create --title "$titolo" --body "$corpo"
+          fi
+
+      - name: Chiudi la segnalazione se e' tutto tornato a posto
+        if: steps.check.outputs.giu == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for n in $(gh issue list --state open --label vm-oracle --json number --jq '.[].number'); do
+            gh issue close "$n" --comment "Servizi tornati raggiungibili, chiudo."
+          done
