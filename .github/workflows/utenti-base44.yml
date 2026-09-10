@@ -1,0 +1,42 @@
+name: Utenti Base44 (import / invito)
+
+# Esecuzione MANUALE dal tab Actions. Nessuna schedulazione: import e inviti si
+# lanciano a mano quando serve.
+on:
+  workflow_dispatch:
+    inputs:
+      comando:
+        description: "Cosa fare"
+        type: choice
+        required: true
+        default: import-anteprima
+        options:
+          - import-anteprima   # conta soltanto quanti utenti importeremmo (nessuna scrittura)
+          - import-reale       # importa davvero in commenti_utenti (silenzioso, NESSUNA email)
+          - invito-anteprima   # conta a chi manderemmo l'invito (nessun invio)
+          - invito-invia       # MANDA le email di attivazione agli utenti importati
+
+jobs:
+  esegui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Esegui comando
+        env:
+          BASE44_APP_ID: ${{ secrets.BASE44_APP_ID }}
+          BASE44_API_KEY: ${{ secrets.BASE44_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SITO_ORIGIN: ${{ vars.SITO_ORIGIN }}
+        run: |
+          case "${{ github.event.inputs.comando }}" in
+            import-anteprima) node import-utenti-base44.mjs --dry ;;
+            import-reale)     node import-utenti-base44.mjs ;;
+            invito-anteprima) node invita-utenti-base44.mjs ;;
+            invito-invia)     node invita-utenti-base44.mjs --invia ;;
+            *) echo "comando sconosciuto"; exit 1 ;;
+          esac
