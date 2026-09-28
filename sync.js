@@ -12,11 +12,14 @@
 
 const B44_APP_ID = process.env.BASE44_APP_ID;
 const B44_API_KEY = process.env.BASE44_API_KEY;
+// Base44: dal 15.10.2026 le api_key smettono di funzionare → personal access token (Bearer).
+// Se BASE44_TOKEN c'è usa quello, altrimenti la vecchia api_key.
+const B44_AUTH = process.env.BASE44_TOKEN ? { Authorization: `Bearer ${process.env.BASE44_TOKEN}` } : { api_key: B44_API_KEY };
 const SUPA_URL = process.env.SUPABASE_URL;
 const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SYNC_LIMIT = process.env.SYNC_LIMIT ? parseInt(process.env.SYNC_LIMIT, 10) : null;
 
-if (!B44_APP_ID || !B44_API_KEY || !SUPA_URL || !SUPA_KEY) {
+if (!B44_APP_ID || !(B44_API_KEY || process.env.BASE44_TOKEN) || !SUPA_URL || !SUPA_KEY) {
   console.error('✗ Missing env vars: BASE44_APP_ID, BASE44_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY');
   process.exit(1);
 }
@@ -102,7 +105,7 @@ function mapEvent(b44) {
 async function fetchBase44() {
   console.log('→ Fetching events from Base44...');
   const url = `https://base44.app/api/apps/${B44_APP_ID}/entities/Evento`;
-  const r = await fetch(url, { headers: { api_key: B44_API_KEY } });
+  const r = await fetch(url, { headers: B44_AUTH });
   if (!r.ok) throw new Error(`Base44 ${r.status}: ${(await r.text()).slice(0, 300)}`);
   const events = await r.json();
   if (!Array.isArray(events)) throw new Error(`Base44 returned non-array: ${typeof events}`);

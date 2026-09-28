@@ -25,6 +25,7 @@ jobs:
         env:
           BASE44_APP_ID: ${{ secrets.BASE44_APP_ID }}
           BASE44_API_KEY: ${{ secrets.BASE44_API_KEY }}
+          BASE44_TOKEN: ${{ secrets.BASE44_TOKEN }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DRY_RUN: ${{ github.event.inputs.dry_run }}

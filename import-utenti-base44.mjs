@@ -18,7 +18,8 @@ import crypto from 'node:crypto'
 
 const DRY = process.argv.includes('--dry')
 const { BASE44_APP_ID, BASE44_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = process.env
-if (!BASE44_APP_ID || !BASE44_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+const B44_AUTH = process.env.BASE44_TOKEN ? { Authorization: `Bearer ${process.env.BASE44_TOKEN}` } : { api_key: BASE44_API_KEY }
+if (!BASE44_APP_ID || !(BASE44_API_KEY || process.env.BASE44_TOKEN) || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error('✗ Mancano env: BASE44_APP_ID, BASE44_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY'); process.exit(1)
 }
 const SUPA = SUPABASE_URL.replace(/\/$/, '')
@@ -27,7 +28,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const passNonValida = () => 'imported-' + crypto.randomBytes(12).toString('hex') // senza ':' → verifyPassword sempre false
 
 async function fetchBase44Users() {
-  const r = await fetch(`https://base44.app/api/apps/${BASE44_APP_ID}/entities/User`, { headers: { api_key: BASE44_API_KEY } })
+  const r = await fetch(`https://base44.app/api/apps/${BASE44_APP_ID}/entities/User`, { headers: B44_AUTH })
   if (!r.ok) throw new Error(`Base44 ${r.status}: ${(await r.text()).slice(0, 300)}`)
   const arr = await r.json()
   if (!Array.isArray(arr)) throw new Error('Base44 User: risposta non-array')
