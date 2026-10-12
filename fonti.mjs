@@ -1,5 +1,5 @@
 // ============================================================
-// fonti.mjs — Adapter per le sorgenti eventi
+// fonti.mjs: Adapter per le sorgenti eventi
 // ============================================================
 // Ogni fonte restituisce un array di EVENTI NORMALIZZATI:
 // {

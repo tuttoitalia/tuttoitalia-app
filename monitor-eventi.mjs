@@ -1,5 +1,5 @@
 // ============================================================
-// monitor-eventi.mjs — Monitoraggio eventi di artisti italiani
+// monitor-eventi.mjs: Monitoraggio eventi di artisti italiani
 // ============================================================
 // Ogni ora: interroga le piattaforme di ticketing e i promoter,
 // tiene solo gli eventi di ARTISTI ITALIANI che si svolgono FUORI
@@ -154,8 +154,8 @@ function trovaArtistaItaliano(ev, watchlist) {
 // dopo che Cirano li aveva tolti.
 //
 // Due fonti di verità, entrambe consultate prima di creare:
-//  a) esclusi.json      — pattern espliciti (artisti omonimi, rassegne indesiderate)
-//  b) Supabase deleted_at — ogni evento sparito da Base44 viene soft-deleted dal
+//  a) esclusi.json     : pattern espliciti (artisti omonimi, rassegne indesiderate)
+//  b) Supabase deleted_at: ogni evento sparito da Base44 viene soft-deleted dal
 //     sync notturno: è il registro automatico di ciò che è stato cancellato.
 // L'anno va tolto dal titolo prima di confrontare: la stessa fonte pubblica lo
 // stesso concerto ora con l'anno ora senza ("The best of Ennio Morricone" /
@@ -257,7 +257,7 @@ async function blocklistSupabase() {
 // stesso titolo è stato cancellato per una data vicina: la fonte ripropone lo
 // stesso concerto con il nome leggermente diverso ("The best of Ennio Morricone
 // 2027") o con la data spostata di qualche giorno. Oltre la finestra si assume
-// una nuova edizione — le rassegne annuali devono poter rientrare.
+// una nuova edizione: le rassegne annuali devono poter rientrare.
 function escluso(ev, artista, blocco, esclusi, titoliVivi) {
   const nome = norm(ev.nome);
   const base = titoloBase(ev.nome);
@@ -369,7 +369,7 @@ async function raccogli(watchlist) {
 // ─── Main ─────────────────────────────────────────────────────
 async function main() {
   const oggi = new Date().toISOString().slice(0, 10);
-  console.log(`▶ Monitoraggio eventi ${DRY_RUN ? '(DRY RUN) ' : ''}${SOLO_CH ? '[solo CH] ' : ''}— ${new Date().toISOString()}`);
+  console.log(`▶ Monitoraggio eventi ${DRY_RUN ? '(DRY RUN) ' : ''}${SOLO_CH ? '[solo CH] ' : ''}| ${new Date().toISOString()}`);
 
   const watchlist = caricaWatchlist();
   console.log(`  watchlist: ${watchlist.length} artisti italiani`);
@@ -490,7 +490,7 @@ async function main() {
   }
 
   const inCodaOra = proposte.inAttesa + proposti;
-  console.log(`\n✓ Fatto — proposti:${proposti} · in attesa di decisione:${inCodaOra} · errori:${errori}`);
+  console.log(`\n✓ Fatto: proposti:${proposti} · in attesa di decisione:${inCodaOra} · errori:${errori}`);
   if (inCodaOra) console.log('  da rivedere in my.tuttoitalia.ch/admin/eventi/proposte');
 }
 

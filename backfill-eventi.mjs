@@ -1,5 +1,5 @@
 // ============================================================
-// backfill-eventi.mjs — Backfill storico degli eventi Tuttoitalia
+// backfill-eventi.mjs: Backfill storico degli eventi Tuttoitalia
 // ============================================================
 // Inserisce su Base44 (entità Evento, source of truth) gli eventi
 // storici dell'archivio news.tuttoitalia.ch/eventi/ che non sono
@@ -119,7 +119,7 @@ async function main() {
   const oggi = new Date().toISOString().slice(0, 10);
   const FILE = process.env.BACKFILL_FILE || './eventi-backfill.json';
   const items = JSON.parse(fs.readFileSync(new URL(FILE, import.meta.url), 'utf8'));
-  console.log(`▶ Backfill eventi ${DRY_RUN ? '(DRY RUN) ' : ''}— ${items.length} eventi in archivio — ${new Date().toISOString()}`);
+  console.log(`▶ Backfill eventi${DRY_RUN ? ' (DRY RUN)' : ''}: ${items.length} eventi in archivio, ${new Date().toISOString()}`);
 
   // Dedup contro Base44 SOLO per nome+data esatta.
   // NB: a differenza del monitoraggio, qui NON si usa il dedup nome+anno:
@@ -187,6 +187,6 @@ async function main() {
       console.error(`  ✗ ${ev.data_inizio?.slice(0, 10)} ${ev.nome}: ${e.message}`);
     }
   }
-  console.log(`✓ Fatto — creati:${creati} · saltati(già presenti/incompleti):${saltati} · errori:${errori} · mirror KO:${mirrorFail}`);
+  console.log(`✓ Fatto: creati:${creati} · saltati(già presenti/incompleti):${saltati} · errori:${errori} · mirror KO:${mirrorFail}`);
 }
 main().catch((e) => { console.error(e); process.exit(1); });

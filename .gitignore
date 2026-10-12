@@ -1,7 +1,7 @@
 # Dipendenze
 node_modules/
 
-# Variabili d'ambiente e segreti — NON committare mai
+# Variabili d'ambiente e segreti: NON committare mai
 .env
 .env.*
 *.local

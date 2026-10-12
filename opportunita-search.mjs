@@ -1,5 +1,5 @@
 // ============================================================
-// opportunita-search.mjs — Ricerca opportunità commerciali per Tuttoitalia
+// opportunita-search.mjs: Ricerca opportunità commerciali per Tuttoitalia
 // ============================================================
 // Ogni giorno: Claude (API Anthropic, tool web_search) cerca lead pubblicitari
 // freschi (concerti/cinema/eventi/viaggi/corsi/aperture italiane in CH) e li
@@ -42,7 +42,7 @@ Il potenziale CLIENTE è chi vende/organizza (promoter, distributore, azienda), 
 Rispondi ESCLUSIVAMENTE con un array JSON (nessun testo prima o dopo, nessun markdown), 5-15 oggetti con questi campi:
 {"categoria": "concerti|cinema|eventi|viaggi|ristorazione|aziende|altro", "titolo": "nome cliente + aggancio", "descrizione": "cosa fa e perché rilevante ora", "evento_data": "data evento/uscita testo o null", "contatto": "sito ufficiale o email reale o null", "fonte_url": "link verificato realmente visto (obbligatorio)", "budget_min": intero CHF, "budget_max": intero CHF, "priorita": intero 1-5}
 Budget col listino Tuttoitalia: articolo 100, newsletter 400, banner onda 3 settimane ~750, social 150; corporate/big 2000-5000, corsi 300-700. priorita 5 = alto valore e imminente.
-Solo dati con fonte reale (niente fonte = scarta). Niente emoji, niente trattino em. Non ripetere lead notissimi già coperti a luglio 2026 (Morandini "Napoli-New York", Dema "D'Angelo/Pupo", Gadget "Pausini", Xenix due film).`;
+Solo dati con fonte reale (niente fonte = scarta). Niente emoji. Non usare MAI il trattino lungo (em dash, U+2014): al suo posto due punti, virgola o parentesi; mai una virgola prima di "e". Non ripetere lead notissimi già coperti a luglio 2026 (Morandini "Napoli-New York", Dema "D'Angelo/Pupo", Gadget "Pausini", Xenix due film).`;
 
 async function callAnthropic(messages) {
   const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -79,18 +79,34 @@ async function cercaLead() {
   return JSON.parse(m[0]);
 }
 
+// Rete di sicurezza: il trattino lungo (U+2014) non deve mai finire nei testi.
+// Valore vuoto -> "-", intervalli numerici -> "-", il primo separatore -> ": ",
+// gli altri incisi -> ", ". Mai una virgola prima di e/ed/und/and/et.
+const EM = String.fromCharCode(0x2014);
+function senzaTrattinoLungo(v) {
+  if (v == null) return v;
+  let t = String(v).replace(/&mdash;|&#8212;|&#x2014;/gi, EM);
+  if (!t.includes(EM)) return t;
+  if (t.trim() === EM) return '-';
+  t = t.replace(new RegExp(`(\\d)\\s*${EM}\\s*(\\d)`, 'g'), '$1-$2');
+  t = t.replace(new RegExp(`\\s*${EM}\\s*`), ': ');
+  t = t.replace(new RegExp(`\\s*${EM}\\s*`, 'g'), ', ');
+  t = t.replace(/,\s*:/g, ':').replace(/:\s*,\s*/g, ': ').replace(/,(\s*,)+/g, ',');
+  return t.replace(/,(\s+)(e|ed|und|and|et)\b/g, '$1$2');
+}
+
 function normalizza(raw) {
   const out = [];
   const CAT_OK = new Set(['concerti', 'cinema', 'eventi', 'viaggi', 'ristorazione', 'aziende', 'altro']);
   for (const o of raw) {
     const categoria = CAT_OK.has(o.categoria) ? o.categoria : 'altro';
-    const titolo = String(o.titolo || '').trim();
+    const titolo = senzaTrattinoLungo(String(o.titolo || '').trim());
     if (!titolo || !o.fonte_url) continue; // senza titolo o fonte non entra
     out.push({
       categoria,
       titolo,
-      descrizione: o.descrizione || null,
-      evento_data: o.evento_data || null,
+      descrizione: senzaTrattinoLungo(o.descrizione) || null,
+      evento_data: senzaTrattinoLungo(o.evento_data) || null,
       contatto: o.contatto || null,
       fonte_url: o.fonte_url,
       budget_min: Number.isFinite(o.budget_min) ? o.budget_min : null,
@@ -140,8 +156,8 @@ async function inserisci(righe) {
   const normUrl = (u) => (u || '').replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
   const righe = tutte.filter((o) => !keys.has(o.dedup_key) && !fonti.has(normUrl(o.fonte_url)));
   console.log(`  trovate ${tutte.length} valide, ${tutte.length - righe.length} già presenti → ${righe.length} nuove:`);
-  for (const o of righe) console.log(`   · [${o.categoria}] ${o.titolo} — CHF ${o.budget_min}-${o.budget_max} (p${o.priorita})`);
+  for (const o of righe) console.log(`   · [${o.categoria}] ${o.titolo}: CHF ${o.budget_min}-${o.budget_max} (p${o.priorita})`);
   if (DRY_RUN) { console.log('  DRY_RUN: niente scritto.'); return; }
   const n = righe.length ? await inserisci(righe) : 0;
-  console.log(`✓ Fatto — nuove inserite: ${n}`);
+  console.log(`✓ Fatto: nuove inserite: ${n}`);
 })().catch((e) => { console.error('✗', e.message); process.exit(1); });

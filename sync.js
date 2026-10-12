@@ -1,5 +1,5 @@
 // ============================================================
-// sync.js — Sync eventi da Base44 → Supabase
+// sync.js: Sync eventi da Base44 → Supabase
 // ============================================================
 // Esegui in locale:
 //   BASE44_APP_ID=... BASE44_API_KEY=... \
@@ -176,7 +176,7 @@ function scartaDoppioni(mappati, esistenti) {
     const gia = esistenti.get(k);
     if (viste.has(k) || (esistenti.has(k) && gia !== e.base44_id)) {
       scartati++;
-      console.log(`  · doppione saltato: ${e.title} — ${e.date} ${e.orario ?? ''}`.trimEnd());
+      console.log(`  · doppione saltato: ${e.title}: ${e.date} ${e.orario ?? ''}`.trimEnd());
       continue;
     }
     viste.add(k);
@@ -245,7 +245,7 @@ async function main() {
   }
 
   const dur = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(`✓ Sync complete in ${dur}s — ${b44Events.length} events processed`);
+  console.log(`✓ Sync complete in ${dur}s: ${b44Events.length} events processed`);
 }
 
 main().catch((e) => {
