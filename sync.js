@@ -215,6 +215,15 @@ async function softDeleteRemoved(removedIds) {
   console.log(`  ✓ Soft-deleted ${removedIds.length}`);
 }
 
+// Eventi salvati almeno una volta dal gestionale (my.tuttoitalia.ch): lì sono definitivi,
+// Base44 non li tocca più. Gli id Base44 li annota il gestionale in impostazioni.base44_sganciati.
+async function fetchSganciati() {
+  const r = await fetch(`${SUPA_URL}/rest/v1/impostazioni?chiave=eq.base44_sganciati&select=valore`, { headers: supaHeaders });
+  if (!r.ok) return new Set();
+  const righe = await r.json();
+  return new Set(Array.isArray(righe[0]?.valore) ? righe[0].valore : []);
+}
+
 // Le immagini caricate dal gestionale (my.tuttoitalia.ch → Carica / Riduci) stanno sul
 // nostro storage Supabase: Base44 non le conosce e la sync le rimetteva al valore vecchio.
 // Se in Supabase il campo punta già al nostro storage, la sync lo lascia com'è.
@@ -247,7 +256,10 @@ async function main() {
   const supaSyncedIds = await fetchSupabaseSyncedIds();
 
   const esistenti = await fetchChiaviEsistenti();
-  const mapped = scartaDoppioni(b44Events.map(mapEvent), esistenti);
+  const sganciati = await fetchSganciati();
+  const daSincronizzare = b44Events.filter((e) => !sganciati.has(e.id));
+  if (sganciati.size) console.log(`  ✓ ${b44Events.length - daSincronizzare.length} eventi gestiti solo dal gestionale, saltati`);
+  const mapped = scartaDoppioni(daSincronizzare.map(mapEvent), esistenti);
   await teniImmaginiNostre(mapped);
   console.log(`→ Upserting ${mapped.length} events into Supabase...`);
   const CHUNK = 100;
