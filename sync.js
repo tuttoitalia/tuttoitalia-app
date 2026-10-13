@@ -215,6 +215,26 @@ async function softDeleteRemoved(removedIds) {
   console.log(`  ✓ Soft-deleted ${removedIds.length}`);
 }
 
+// Le immagini caricate dal gestionale (my.tuttoitalia.ch → Carica / Riduci) stanno sul
+// nostro storage Supabase: Base44 non le conosce e la sync le rimetteva al valore vecchio.
+// Se in Supabase il campo punta già al nostro storage, la sync lo lascia com'è.
+const CAMPI_IMMAGINE = ['poster_url', 'immagine_url', 'immagine_header_upload'];
+const SUL_NOSTRO_STORAGE = /\/storage\/v1\/object\/public\//;
+
+async function teniImmaginiNostre(mapped) {
+  const rows = await fetchPaginato(`select=base44_id,${CAMPI_IMMAGINE.join(',')}&base44_id=not.is.null`);
+  const perId = new Map(rows.map((r) => [r.base44_id, r]));
+  let tenute = 0;
+  for (const e of mapped) {
+    const ora = perId.get(e.base44_id);
+    if (!ora) continue;
+    for (const c of CAMPI_IMMAGINE) {
+      if (ora[c] && SUL_NOSTRO_STORAGE.test(ora[c]) && ora[c] !== e[c]) { e[c] = ora[c]; tenute++; }
+    }
+  }
+  if (tenute) console.log(`  ✓ ${tenute} immagini caricate dal gestionale lasciate com'erano`);
+}
+
 // ─── Main ─────────────────────────────────────────────────────
 
 async function main() {
@@ -228,6 +248,7 @@ async function main() {
 
   const esistenti = await fetchChiaviEsistenti();
   const mapped = scartaDoppioni(b44Events.map(mapEvent), esistenti);
+  await teniImmaginiNostre(mapped);
   console.log(`→ Upserting ${mapped.length} events into Supabase...`);
   const CHUNK = 100;
   for (let i = 0; i < mapped.length; i += CHUNK) {
