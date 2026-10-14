@@ -27,6 +27,16 @@ const supaHeaders = { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, 'Co
 const slug = (s) => (s || '').toString().toLowerCase().normalize('NFD')
   .replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
+// Entità principale del lead (il cliente/promoter): prima parola "forte" del titolo,
+// saltando parole generiche. Serve per un dedup_key STABILE tra i giri: il modello
+// varia il titolo ogni giorno, ma l'entità (easyJet, Expovina, Nino D'Angelo…) resta.
+const STOP = new Set(['nuovo','nuova','nuovi','nuove','campagna','programmazione','tour','festival','promozione','promozioni','stagione','spettacoli','spettacolo','corsi','corso','rotte','rotta','voli','volo','biglietto','fiera','autunno','inverno','estate','primavera','winter','special','deal','della','delle','dello','concerto','concerti','film','uscita','cinema','eventi','evento','svizzera','svizzere','italia','italiano','italiana','italiani','italiane','zurigo','ticino','lugano','anni','world']);
+function entita(t) {
+  const toks = (t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+  for (const w of toks) { if (w.length >= 3 && !/^\d+$/.test(w) && !STOP.has(w)) return w; }
+  return toks[0] || 'x';
+}
+
 const PROMPT = `Sei un ricercatore commerciale per Tuttoitalia GmbH, media company di Zurigo (tuttoitalia.ch, ~95k visitatori/mese) che vende pubblicità (articoli 4 lingue, newsletter ~28k iscritti, banner, social, concorsi) agli inserzionisti che vogliono raggiungere gli italiani in Svizzera. Oggi è ${oggi}.
 
 Cerca sul web opportunità di business FRESCHE (eventi/uscite nei prossimi ~6 mesi, vendite/campagne in corso) nei filoni:
@@ -113,7 +123,7 @@ function normalizza(raw) {
       budget_max: Number.isFinite(o.budget_max) ? o.budget_max : null,
       priorita: Number.isFinite(o.priorita) ? Math.min(5, Math.max(1, o.priorita)) : 3,
       stato: 'nuovo',
-      dedup_key: `${categoria}-${slug(titolo)}`,
+      dedup_key: `${categoria}-${entita(titolo)}`,  // stabile per entità/cliente, non per titolo
       trovato_il: oggi,
     });
   }
@@ -125,14 +135,17 @@ function normalizza(raw) {
 // Chiavi già presenti: dedup_key + fonte_url (normalizzato). Il titolo cambia tra
 // i giri → il solo dedup_key non basta; la fonte ufficiale è più stabile.
 async function giaPresenti() {
-  const r = await fetch(`${SUPA_URL}/rest/v1/opportunita?select=dedup_key,fonte_url`, { headers: supaHeaders });
-  if (r.status === 404) return { keys: new Set(), fonti: new Set() }; // tabella non ancora creata
+  const r = await fetch(`${SUPA_URL}/rest/v1/opportunita?select=dedup_key,fonte_url,categoria,titolo`, { headers: supaHeaders });
+  if (r.status === 404) return { keys: new Set(), fonti: new Set(), entita: new Set() }; // tabella non ancora creata
   if (!r.ok) throw new Error(`lettura opportunità ${r.status}`);
   const righe = await r.json();
   const normUrl = (u) => (u || '').replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
   return {
     keys: new Set(righe.map((x) => x.dedup_key)),
     fonti: new Set(righe.map((x) => normUrl(x.fonte_url)).filter(Boolean)),
+    // entità già presenti (in QUALSIASI stato): non riproporre lo stesso cliente
+    // già lavorato/archiviato, anche se aveva un dedup_key di vecchio formato.
+    entita: new Set(righe.map((x) => `${x.categoria}|${entita(x.titolo)}`)),
   };
 }
 
@@ -152,9 +165,10 @@ async function inserisci(righe) {
   const raw = await cercaLead();
   const tutte = normalizza(raw);
   // Scarta quelle già in tabella (per dedup_key o per fonte già presente).
-  const { keys, fonti } = await giaPresenti();
+  const { keys, fonti, entita: entitaViste } = await giaPresenti();
   const normUrl = (u) => (u || '').replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
-  const righe = tutte.filter((o) => !keys.has(o.dedup_key) && !fonti.has(normUrl(o.fonte_url)));
+  const righe = tutte.filter((o) =>
+    !keys.has(o.dedup_key) && !fonti.has(normUrl(o.fonte_url)) && !entitaViste.has(`${o.categoria}|${entita(o.titolo)}`));
   console.log(`  trovate ${tutte.length} valide, ${tutte.length - righe.length} già presenti → ${righe.length} nuove:`);
   for (const o of righe) console.log(`   · [${o.categoria}] ${o.titolo}: CHF ${o.budget_min}-${o.budget_max} (p${o.priorita})`);
   if (DRY_RUN) { console.log('  DRY_RUN: niente scritto.'); return; }
