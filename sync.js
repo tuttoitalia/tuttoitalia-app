@@ -230,18 +230,37 @@ async function fetchSganciati() {
 const CAMPI_IMMAGINE = ['poster_url', 'immagine_url', 'immagine_header_upload'];
 const SUL_NOSTRO_STORAGE = /\/storage\/v1\/object\/public\//;
 
+// Le immagini di Base44 (e del vecchio CDN Webflow) copiate sul nostro Hostpoint il 14.10.2026,
+// perché Base44 si spegne il 25.10.2026: stanno in media.tuttoitalia.ch/eventi/ con lo stesso
+// nome del file originale (scripts/copia-immagini-eventi.mjs). Finché Base44 manda lo stesso
+// file, la sync tiene la nostra copia; se su Base44 cambia l'immagine, arriva quella nuova.
+// nomeCopia() deve restare identica a quella dello script di copia.
+const COPIA_NOSTRA = /^https:\/\/media\.tuttoitalia\.ch\/eventi\/([^/?#]+)$/;
+function nomeCopia(url) {
+  let nome = '';
+  try { nome = decodeURIComponent(new URL(url).pathname.split('/').pop() || ''); } catch { return ''; }
+  return nome.replace(/[^A-Za-z0-9._-]+/g, '-');
+}
+const eLaNostraCopia = (nostra, b44) => {
+  const m = (nostra || '').match(COPIA_NOSTRA);
+  return !!m && !!b44 && nomeCopia(b44) === m[1];
+};
+
 async function teniImmaginiNostre(mapped) {
   const rows = await fetchPaginato(`select=base44_id,${CAMPI_IMMAGINE.join(',')}&base44_id=not.is.null`);
   const perId = new Map(rows.map((r) => [r.base44_id, r]));
-  let tenute = 0;
+  let tenute = 0, copie = 0;
   for (const e of mapped) {
     const ora = perId.get(e.base44_id);
     if (!ora) continue;
     for (const c of CAMPI_IMMAGINE) {
-      if (ora[c] && SUL_NOSTRO_STORAGE.test(ora[c]) && ora[c] !== e[c]) { e[c] = ora[c]; tenute++; }
+      if (!ora[c] || ora[c] === e[c]) continue;
+      if (SUL_NOSTRO_STORAGE.test(ora[c])) { e[c] = ora[c]; tenute++; }
+      else if (eLaNostraCopia(ora[c], e[c])) { e[c] = ora[c]; copie++; }
     }
   }
   if (tenute) console.log(`  ✓ ${tenute} immagini caricate dal gestionale lasciate com'erano`);
+  if (copie) console.log(`  ✓ ${copie} immagini di Base44 già copiate su media.tuttoitalia.ch lasciate com'erano`);
 }
 
 // ─── Main ─────────────────────────────────────────────────────
