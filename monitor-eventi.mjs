@@ -12,7 +12,8 @@
 // tutto da se' su Base44, e ogni errore di riconoscimento diventava una scheda
 // pubblica da rincorrere.
 //
-// Env: BASE44_APP_ID, BASE44_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+// Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (dal 19.10.2026 il calendario si legge da Supabase:
+//      Base44 si spegne il 25.10.2026)
 // Flag: DRY_RUN=1     -> non scrive nulla, mostra solo cosa farebbe
 //       SOLO_CH=1     -> limita ai soli eventi in Svizzera
 //       SLICE=n       -> forza lo scaglione di watchlist (default: ora corrente)
@@ -24,18 +25,13 @@ import {
   mononomeIsolato, isPacchetto, fetchT, withRetry,
 } from './fonti.mjs';
 
-const B44_APP_ID = process.env.BASE44_APP_ID;
-const B44_API_KEY = process.env.BASE44_API_KEY;
-// Base44: dal 15.10.2026 le api_key smettono di funzionare → personal access token (Bearer).
-// Se BASE44_TOKEN c'è usa quello, altrimenti la vecchia api_key.
-const B44_AUTH = process.env.BASE44_TOKEN ? { Authorization: `Bearer ${process.env.BASE44_TOKEN}` } : { api_key: B44_API_KEY };
 const SUPA_URL = process.env.SUPABASE_URL;
 const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const DRY_RUN = ['1', 'true'].includes(String(process.env.DRY_RUN));
 const SOLO_CH = ['1', 'true'].includes(String(process.env.SOLO_CH));
 
-if (!B44_APP_ID || !(B44_API_KEY || process.env.BASE44_TOKEN) || !SUPA_URL || !SUPA_KEY) {
-  console.error('✗ Missing env: BASE44_APP_ID, BASE44_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY');
+if (!SUPA_URL || !SUPA_KEY) {
+  console.error('✗ Missing env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY');
   process.exit(1);
 }
 
@@ -61,16 +57,22 @@ function toIso(dateStr, timeStr) {
   return `${dateStr.slice(0, 10)}T${t}:00${zurichOffset(dateStr)}`;
 }
 
-// ─── Base44 ───────────────────────────────────────────────────
-const B44_URL = `https://base44.app/api/apps/${B44_APP_ID}/entities/Evento`;
-
-async function base44Eventi() {
-  return withRetry(async () => {
-    const r = await fetchT(B44_URL, { headers: B44_AUTH });
-    if (!r.ok) throw new Error(`${r.status}`);
-    const arr = await r.json();
-    return Array.isArray(arr) ? arr : [];
-  }, 'Base44 list');
+// ─── Calendario attuale (Supabase) ─────────────────────────────
+// Prima veniva da Base44 (entita' Evento). Ora il calendario vive in Supabase (tabella
+// events, modificata dal gestionale): stessi campi rimappati come li usava chiaviBase44().
+async function calendarioEventi() {
+  const tutti = [];
+  for (let da = 0; ; da += 1000) {
+    const r = await withRetry(() => fetchT(
+      `${SUPA_URL}/rest/v1/events?select=id,base44_id,title,date,location,venue&deleted_at=is.null&order=id`,
+      { headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, Range: `${da}-${da + 999}` } },
+    ), 'Supabase calendario');
+    if (!r.ok) throw new Error(`lettura calendario ${r.status}`);
+    const righe = await r.json();
+    tutti.push(...righe.map((e) => ({ id: e.base44_id || e.id, nome: e.title, data_inizio: e.date, luogo: e.location, venue: e.venue })));
+    if (righe.length < 1000) break;
+  }
+  return tutti;
 }
 
 // Il monitor non crea piu' eventi su Base44 ne' li rispecchia su Supabase:
@@ -178,53 +180,6 @@ function caricaEsclusi() {
   } catch {
     return { artisti: [], titoli: [] };
   }
-}
-
-// Registra subito le cancellazioni fatte a mano sul calendario.
-// Senza questo passaggio la blocklist si accorge di una cancellazione solo dopo
-// il sync notturno delle 02:00, e nel frattempo il monitor rimette online
-// l'evento appena tolto: era esattamente il ciclo da cui siamo partiti. Qui il
-// confronto e' immediato: cio' che risulta attivo su Supabase ma non e' piu' su
-// Base44 e' stato cancellato da Cirano, e va marcato prima di decidere cosa creare.
-//
-// Due freni contro il disastro: se la lista Base44 arriva corta (fetch parziale,
-// pagina mancante) sembrerebbero cancellati centinaia di eventi vivi, quindi si
-// procede solo con una lista di dimensione plausibile e con poche sparizioni.
-// Meglio registrare le cancellazioni un giro piu' tardi che svuotare il calendario.
-const MIN_LISTA_SANA = 500;
-const MAX_SPARIZIONI = 40;
-
-async function registraCancellazioni(esistenti) {
-  if (esistenti.length < MIN_LISTA_SANA) {
-    console.warn(`  ⚠ lista Base44 corta (${esistenti.length}): salto il controllo delle cancellazioni`);
-    return 0;
-  }
-  const vivi = new Set(esistenti.map((e) => e.id).filter(Boolean));
-
-  const r = await withRetry(() => fetchT(
-    `${SUPA_URL}/rest/v1/events?select=base44_id,title,date&deleted_at=is.null&base44_id=not.is.null`,
-    { headers: supaHeaders },
-  ), 'Supabase attivi');
-  if (!r.ok) throw new Error(`lettura eventi attivi ${r.status}`);
-  const attivi = await r.json();
-
-  const spariti = attivi.filter((e) => !vivi.has(e.base44_id));
-  if (!spariti.length) return 0;
-  if (spariti.length > MAX_SPARIZIONI) {
-    console.warn(`  ⚠ ${spariti.length} eventi risultano spariti da Base44: troppi per essere cancellazioni manuali, non registro nulla`);
-    return 0;
-  }
-
-  for (const e of spariti) console.log(`  − cancellato dal calendario: ${(e.title || '').slice(0, 60)} (${e.date || 's.d.'})`);
-  if (DRY_RUN) return spariti.length;
-
-  const ids = spariti.map((e) => `"${e.base44_id}"`).join(',');
-  const w = await fetchT(`${SUPA_URL}/rest/v1/events?base44_id=in.(${ids})`, {
-    method: 'PATCH', headers: supaHeaders,
-    body: JSON.stringify({ deleted_at: new Date().toISOString() }),
-  });
-  if (!w.ok) throw new Error(`registrazione cancellazioni ${w.status}: ${(await w.text()).slice(0, 200)}`);
-  return spariti.length;
 }
 
 async function blocklistSupabase() {
@@ -374,9 +329,9 @@ async function main() {
   const watchlist = caricaWatchlist();
   console.log(`  watchlist: ${watchlist.length} artisti italiani`);
 
-  const esistenti = await base44Eventi();
+  const esistenti = await calendarioEventi();
   const { perNome, perArtistaDataCitta, perDataCitta, titoliVivi } = chiaviBase44(esistenti);
-  console.log(`  Base44: ${esistenti.length} eventi già in calendario`);
+  console.log(`  calendario: ${esistenti.length} eventi già presenti`);
 
   const esclusi = caricaEsclusi();
   const proposte = await chiaviProposte();
@@ -387,8 +342,6 @@ async function main() {
     return;
   }
   console.log(`  coda proposte: ${proposte.tutte.size} gia' viste, ${proposte.inAttesa} in attesa di decisione`);
-  const tolti = await registraCancellazioni(esistenti);
-  if (tolti) console.log(`  registrate ${tolti} cancellazioni fatte a mano dall'ultimo giro`);
   const blocco = await blocklistSupabase();
   console.log(`  esclusioni: ${blocco.chiavi.size} eventi cancellati a mano + ${esclusi.artisti.length} artisti e ${esclusi.titoli.length} titoli in esclusi.json`);
 

@@ -10,6 +10,13 @@
 //   ... SYNC_LIMIT=5 node sync.js
 // ============================================================
 
+// Base44 si spegne il 25.10.2026: da quel giorno non c'e' piu' niente da copiare e il calendario
+// vive solo in Supabase. Il sync notturno finisce subito senza errori (e senza toccare il DB).
+if (Date.now() >= Date.parse('2026-10-25T00:00:00+02:00')) {
+  console.log('Base44 spento dal 25.10.2026: sync non piu\' necessario, nessuna modifica.');
+  process.exit(0);
+}
+
 const B44_APP_ID = process.env.BASE44_APP_ID;
 const B44_API_KEY = process.env.BASE44_API_KEY;
 // Base44: dal 15.10.2026 le api_key smettono di funzionare → personal access token (Bearer).
