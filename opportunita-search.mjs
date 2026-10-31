@@ -15,7 +15,7 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const SUPA_URL = process.env.SUPABASE_URL;
 const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const DRY_RUN = ['1', 'true'].includes(String(process.env.DRY_RUN));
-const MODEL = process.env.OPP_MODEL || 'claude-sonnet-4-5';
+const MODEL = process.env.OPP_MODEL || 'claude-sonnet-5-5';
 
 if (!ANTHROPIC_KEY || !SUPA_URL || !SUPA_KEY) {
   console.error('✗ Missing env: ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY');
