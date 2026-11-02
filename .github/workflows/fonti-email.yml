@@ -1,0 +1,37 @@
+name: Fonti foto, email mancanti
+
+# Cerca sui siti ufficiali le email delle fonti foto (consorzi, enti, fotografi) che
+# ancora non ce l'hanno e le scrive nel pannello (my.tuttoitalia.ch/admin/fonti-foto).
+# Solo a mano dal tab Actions: non invia nessuna email, riempie solo i campi vuoti.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Prova senza scrivere (1 = dry run, 0 = reale)"
+        default: '1'
+        required: false
+      limite:
+        description: "Quante fonti al massimo (vuoto = tutte)"
+        default: ''
+        required: false
+
+jobs:
+  ricerca:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cerca le email e scrivi nel pannello
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+          FONTI_LIMIT: ${{ github.event.inputs.limite }}
+        run: node fonti-email-search.mjs
