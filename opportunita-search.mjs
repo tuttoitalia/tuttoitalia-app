@@ -66,6 +66,9 @@ async function callAnthropic(messages) {
       model: MODEL,
       max_tokens: 16000,
       tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 12 }],
+      // prompt caching automatico: il segnalibro va sull'ultimo blocco, cosi' a ogni ripresa
+      // dopo pause_turn il prompt e i risultati di ricerca gia' mandati si rileggono a 0,1x
+      cache_control: { type: 'ephemeral' },
       messages,
     }),
   });
