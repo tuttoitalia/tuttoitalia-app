@@ -172,6 +172,20 @@ create table if not exists scadenze (
 );
 create index if not exists scadenze_data_idx on scadenze (data);
 
+-- ─── Italiani all'estero: famiglia del servizio e paese ─────
+-- "italia" = pratiche verso l'Italia, valgono in qualunque paese (AIRE, passaporto,
+-- IMU...); "paese" = vita quotidiana nel paese dove si abita; "entrambe" = misto.
+-- Oggi il paese e' sempre la Svizzera: il campo c'e' per crescere senza migrazioni.
+alter table servizi  add column if not exists ambito text not null default 'paese'
+  check (ambito in ('italia', 'paese', 'entrambe'));
+alter table schede   add column if not exists paese text not null default 'CH'
+  check (length(paese) = 2);                     -- ISO 3166: CH, DE, FR, IT...
+alter table schede_proposte add column if not exists paese text not null default 'CH';
+alter table guide    add column if not exists paesi text[];   -- null = vale ovunque
+alter table scadenze add column if not exists paese text;     -- null = vale ovunque (scadenze italiane)
+comment on column schede.cantone is 'Regione del paese: sigla del cantone per la Svizzera';
+create index if not exists schede_paese_idx on schede (paese) where pubblicata;
+
 -- ─── Recensioni della comunita' ─────────────────────────────
 create table if not exists recensioni (
   id          uuid primary key default gen_random_uuid(),
@@ -259,15 +273,23 @@ create policy richieste_invio on richieste_contatto for insert to anon, authenti
               and exists (select 1 from schede s where s.id = scheda_id and s.pubblicata));
 
 -- ─── Dati iniziali: gli 8 servizi del 2027 con le categorie ─
-insert into servizi (slug, nome, ordine, data_lancio, stato, descrizione) values
-  ('tasse-burocrazia', 'Tasse e burocrazia',     1, '2027-01-26', 'in_preparazione', 'Dichiarazione d''imposta, permessi, scadenze; fiduciari e patronati che parlano italiano.'),
-  ('casa',             'Casa',                   2, '2027-03-09', 'bozza', 'Trovare e tenere un alloggio in Svizzera: affitto, contratti, traslochi.'),
-  ('salute',           'Salute',                 3, '2027-04-27', 'bozza', 'Medici, dentisti e psicologi che parlano italiano; la LAMal spiegata semplice.'),
-  ('lavoro',           'Lavoro',                 4, '2027-06-08', 'bozza', 'Offerte mirate, riconoscimento dei titoli, candidature in stile svizzero.'),
-  ('primi-passi',      'Primi passi in Svizzera',5, '2027-07-20', 'bozza', 'Tutto quello che serve nei primi tre mesi: permesso, comune, AIRE, conto, telefono.'),
-  ('cassa-malati',     'Cassa malati',           6, '2027-08-31', 'bozza', 'Capire premi e franchigie, cambiare cassa entro le scadenze.'),
-  ('sapori',           'Sapori d''Italia',       7, '2027-10-12', 'bozza', 'Negozi, gastronomie e ristoranti italiani verificati dalla comunità.'),
-  ('previdenza',       'Previdenza',             8, '2027-11-23', 'bozza', 'AVS, secondo e terzo pilastro, pensioni italiane, rientro in Italia.')
+insert into servizi (slug, nome, ordine, data_lancio, stato, ambito, descrizione) values
+  ('tasse-burocrazia', 'Tasse e burocrazia',     1, '2027-01-26', 'in_preparazione', 'paese', 'Dichiarazione d''imposta, permessi, scadenze; fiduciari e patronati che parlano italiano.'),
+  ('casa',             'Casa',                   2, '2027-03-09', 'bozza', 'paese', 'Trovare e tenere un alloggio in Svizzera: affitto, contratti, traslochi.'),
+  ('salute',           'Salute',                 3, '2027-04-27', 'bozza', 'paese', 'Medici, dentisti e psicologi che parlano italiano; la LAMal spiegata semplice.'),
+  ('lavoro',           'Lavoro',                 4, '2027-06-08', 'bozza', 'paese', 'Offerte mirate, riconoscimento dei titoli, candidature in stile svizzero.'),
+  ('primi-passi',      'Primi passi in Svizzera',5, '2027-07-20', 'bozza', 'entrambe', 'Tutto quello che serve nei primi tre mesi: permesso, comune, AIRE, conto, telefono.'),
+  ('cassa-malati',     'Cassa malati',           6, '2027-08-31', 'bozza', 'paese', 'Capire premi e franchigie, cambiare cassa entro le scadenze.'),
+  ('sapori',           'Sapori d''Italia',       7, '2027-10-12', 'bozza', 'paese', 'Negozi, gastronomie e ristoranti italiani verificati dalla comunità.'),
+  ('previdenza',       'Previdenza',             8, '2027-11-23', 'bozza', 'entrambe', 'AVS, secondo e terzo pilastro, pensioni italiane, rientro in Italia.'),
+  -- 2028: date da fissare a settembre 2027
+  ('pratiche-italiane','Pratiche italiane dall''estero', 9, null, 'bozza', 'italia',   'Passaporto, carta d''identità, voto, certificati: il rapporto con l''Italia da lontano.'),
+  ('famiglia-scuola',  'Famiglia e scuola',     10, null, 'bozza', 'entrambe', 'Corsi di italiano per i figli, scuole, cittadinanza dei figli.'),
+  ('casa-in-italia',   'Casa in Italia',        11, null, 'bozza', 'italia',   'IMU, affitto o vendita, successioni per chi ha una casa in Italia.'),
+  ('viaggi-spedizioni','Viaggi e spedizioni',   12, null, 'bozza', 'entrambe', 'Treni, voli, pacchi e traslochi verso l''Italia.'),
+  ('documenti',        'Documenti',             13, null, 'bozza', 'entrambe', 'Traduzioni giurate, apostille, conversione della patente.'),
+  ('rientro',          'Rientro in Italia',     14, null, 'bozza', 'italia',   'Agevolazioni fiscali, trasloco, iscrizione al servizio sanitario.'),
+  ('comunita',         'Comunità',              15, null, 'bozza', 'entrambe', 'Associazioni, volontariato, aiuto reciproco.')
 on conflict (slug) do nothing;
 
 insert into categorie (servizio_id, slug, nome, ordine, ricerca_hint)
