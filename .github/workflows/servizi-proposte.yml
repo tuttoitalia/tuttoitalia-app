@@ -1,0 +1,39 @@
+name: Proposte schede servizi
+
+# Cerca professionisti e attivita' italofoni per le categorie dei servizi
+# "in_preparazione" o "lanciato" (vedi supabase/servizi.sql) e li mette nella
+# coda schede_proposte. Senza tabelle o senza servizi attivi esce subito,
+# senza chiamare l'API.
+on:
+  schedule:
+    - cron: '0 6 * * 1,4'   # lunedi' e giovedi' 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Prova senza scrivere (1 = dry run, 0 = reale)"
+        default: '0'
+        required: false
+      categorie:
+        description: "Categorie da cercare in questo giro"
+        default: '2'
+        required: false
+
+jobs:
+  proposte:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cerca candidati e scrivi nella coda
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+          CATEGORIE_PER_GIRO: ${{ github.event.inputs.categorie }}
+        run: node servizi-proposte.mjs
