@@ -1,8 +1,8 @@
 -- ============================================================
 -- servizi.sql: struttura comune ai servizi TuttoItalia (piano 2027)
 -- ============================================================
--- Un solo modello per tutti gli 8 servizi (tasse, casa, salute, lavoro,
--- primi passi, cassa malati, sapori, previdenza). Un servizio nuovo = una riga
+-- Un solo modello per tutti i servizi (2027: tasse, casa, salute, pratiche
+-- italiane, primi passi, cassa malati, sapori, previdenza; 2028: gli altri). Un servizio nuovo = una riga
 -- in `servizi` con le sue `categorie`, non tabelle o codice nuovi.
 --
 --   servizi ─┬─ categorie ─┬─ schede ─┬─ recensioni
@@ -322,13 +322,13 @@ insert into servizi (slug, nome, ordine, data_lancio, stato, ambito, descrizione
   ('tasse-burocrazia', 'Tasse e burocrazia',     1, '2027-01-26', 'in_preparazione', 'paese', 'Dichiarazione d''imposta, permessi, scadenze; fiduciari e patronati che parlano italiano.'),
   ('casa',             'Casa',                   2, '2027-03-09', 'bozza', 'paese', 'Trovare e tenere un alloggio in Svizzera: affitto, contratti, traslochi.'),
   ('salute',           'Salute',                 3, '2027-04-27', 'bozza', 'paese', 'Medici, dentisti e psicologi che parlano italiano; la LAMal spiegata semplice.'),
-  ('lavoro',           'Lavoro',                 4, '2027-06-08', 'bozza', 'paese', 'Offerte mirate, riconoscimento dei titoli, candidature in stile svizzero.'),
+  ('lavoro',           'Lavoro',                 9, null,         'bozza', 'paese', 'Offerte mirate, riconoscimento dei titoli, candidature in stile locale.'),
   ('primi-passi',      'Primi passi in Svizzera',5, '2027-07-20', 'bozza', 'entrambe', 'Tutto quello che serve nei primi tre mesi: permesso, comune, AIRE, conto, telefono.'),
   ('cassa-malati',     'Cassa malati',           6, '2027-08-31', 'bozza', 'paese', 'Capire premi e franchigie, cambiare cassa entro le scadenze.'),
   ('sapori',           'Sapori d''Italia',       7, '2027-10-12', 'bozza', 'paese', 'Negozi, gastronomie e ristoranti italiani verificati dalla comunità.'),
   ('previdenza',       'Previdenza',             8, '2027-11-23', 'bozza', 'entrambe', 'AVS, secondo e terzo pilastro, pensioni italiane, rientro in Italia.'),
-  -- 2028: date da fissare a settembre 2027
-  ('pratiche-italiane','Pratiche italiane dall''estero', 9, null, 'bozza', 'italia',   'Passaporto, carta d''identità, voto, certificati: il rapporto con l''Italia da lontano.'),
+  -- Pratiche italiane anticipata a giugno 2027 al posto di Lavoro; gli altri nel 2028, date da fissare a settembre 2027
+  ('pratiche-italiane','Pratiche italiane dall''estero', 4, '2027-06-08', 'bozza', 'italia', 'Passaporto, carta d''identità, voto, certificati: il rapporto con l''Italia da lontano.'),
   ('famiglia-scuola',  'Famiglia e scuola',     10, null, 'bozza', 'entrambe', 'Corsi di italiano per i figli, scuole, cittadinanza dei figli.'),
   ('casa-in-italia',   'Casa in Italia',        11, null, 'bozza', 'italia',   'IMU, affitto o vendita, successioni per chi ha una casa in Italia.'),
   ('viaggi-spedizioni','Viaggi e spedizioni',   12, null, 'bozza', 'entrambe', 'Treni, voli, pacchi e traslochi verso l''Italia.'),
