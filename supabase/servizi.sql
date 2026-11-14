@@ -366,3 +366,35 @@ on conflict (servizio_id, slug) do nothing;
 -- La cassa malati di base e' un sistema svizzero: la categoria vale solo in CH.
 update categorie set paesi = array['CH']
 where slug = 'consulenti-assicurativi' and paesi is null;
+
+-- ─── Scaletta delle guide (bozze da far scrivere a guide-bozze.mjs) ─
+-- `traccia` dice cosa deve coprire la guida. Lo script riempie corpo e fonti
+-- e la passa a 'in_revisione': la pubblicazione resta una scelta umana.
+alter table guide add column if not exists traccia text;
+
+insert into guide (servizio_id, slug, titolo, traccia, paesi, stato)
+select s.id, g.slug, g.titolo, g.traccia, array['CH'], 'bozza'
+from servizi s
+join (values
+  ('dichiarazione-imposta-chi-deve-farla', 'La dichiarazione d''imposta in Svizzera: chi la deve fare',
+   'Differenza tra imposta alla fonte e tassazione ordinaria; chi riceve i moduli e quando; cosa succede se non si consegna; struttura del modulo in breve.'),
+  ('imposta-alla-fonte-tou', 'Imposta alla fonte: quando chiedere la tassazione ordinaria ulteriore',
+   'Regole in vigore dal 2021: obbligo sopra la soglia di reddito, richiesta facoltativa sotto, termine del 31 marzo, quando conviene e quando no, esempi numerici indicativi.'),
+  ('scadenze-dichiarazione-proroga', 'Scadenze cantonali della dichiarazione e come chiedere una proroga',
+   'Termine ordinario nei cantoni principali, proroga online o per lettera, costi della proroga dove previsti, multe per ritardo. Tabella per cantone con fonte ufficiale per ogni riga.'),
+  ('deduzioni-dimenticate', 'Le deduzioni che gli italiani dimenticano',
+   'Spese professionali (trasferta, pasti, formazione), pilastro 3a, interessi passivi, figli e custodia, donazioni, premi di cassa malati: limiti federali e differenze cantonali.'),
+  ('immobili-redditi-italia', 'Casa e redditi in Italia nella dichiarazione svizzera',
+   'Valore locativo e immobili all''estero, metodo dell''esenzione con riserva di progressività, pensioni e affitti italiani, convenzione contro le doppie imposizioni Italia-Svizzera.'),
+  ('frontalieri-nuovo-accordo', 'Frontalieri: cosa cambia con il nuovo accordo fiscale Italia-Svizzera',
+   'Nuovi e vecchi frontalieri, regime transitorio, ripartizione dell''imposta, telelavoro, cosa dichiarare in Italia. Solo regole confermate da fonti ufficiali.'),
+  ('permessi-e-tasse', 'Permessi B, C, G e L: cosa cambia per le tasse',
+   'Per ogni permesso: imposta alla fonte o ordinaria, cosa cambia passando dal B al C, obblighi in caso di cambio di cantone.'),
+  ('decisione-di-tassazione-reclamo', 'Come leggere la decisione di tassazione e fare reclamo',
+   'Le voci principali della decisione, termine di 30 giorni per il reclamo, come scriverlo, rate e acconti, cosa fare se non si riesce a pagare.'),
+  ('fiduciario-o-fai-da-te', 'Fiduciario o fai da te: quando conviene',
+   'Casi semplici e casi complessi, fasce di prezzo indicative dei fiduciari, programmi cantonali gratuiti per compilare, cosa chiedere a un fiduciario prima di affidargli la pratica.'),
+  ('arrivo-partenza-in-corso-anno', 'Arrivare o partire in corso d''anno: tasse, comune e AIRE',
+   'Tassazione pro rata, notifica di arrivo e partenza al comune, iscrizione o cancellazione AIRE, conto di libero passaggio e pilastro 3a alla partenza.')
+) as g(slug, titolo, traccia) on s.slug = 'tasse-burocrazia'
+on conflict (slug) do nothing;
