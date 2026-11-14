@@ -183,8 +183,47 @@ alter table schede   add column if not exists paese text not null default 'CH'
 alter table schede_proposte add column if not exists paese text not null default 'CH';
 alter table guide    add column if not exists paesi text[];   -- null = vale ovunque
 alter table scadenze add column if not exists paese text;     -- null = vale ovunque (scadenze italiane)
-comment on column schede.cantone is 'Regione del paese: sigla del cantone per la Svizzera';
 create index if not exists schede_paese_idx on schede (paese) where pubblicata;
+
+-- ─── Paesi: dove sono aperti i servizi "vivere nel paese" ────
+-- Si apre un paese passando lo stato a 'in_preparazione' (la ricerca automatica
+-- comincia a proporre schede) e poi ad 'attivo' (visibile sul sito).
+create table if not exists paesi (
+  codice          text primary key check (length(codice) = 2),   -- ISO 3166
+  nome            text not null,
+  ordine          int  not null default 0,
+  stato           text not null default 'bozza'
+                  check (stato in ('bozza', 'in_preparazione', 'attivo')),
+  citta           text[] not null default '{}',   -- citta' prioritarie per la ricerca
+  termini_ricerca text,                           -- come si dice "parla italiano" nella lingua locale
+  created_at      timestamptz not null default now()
+);
+
+insert into paesi (codice, nome, ordine, stato, citta, termini_ricerca) values
+  ('CH', 'Svizzera',    1, 'attivo', array['Zurigo','Basilea','Berna','Ginevra','Losanna','San Gallo','Lucerna'], 'italienisch sprechend, parle italien'),
+  ('DE', 'Germania',    2, 'bozza',  array['Monaco di Baviera','Stoccarda','Francoforte','Berlino','Colonia','Amburgo'], 'italienisch sprechend, spricht Italienisch'),
+  ('FR', 'Francia',     3, 'bozza',  array['Parigi','Lione','Marsiglia','Grenoble','Nizza'], 'parle italien, italophone'),
+  ('BE', 'Belgio',      4, 'bozza',  array['Bruxelles','Liegi','Charleroi','Anversa'], 'parle italien, spreekt Italiaans'),
+  ('GB', 'Regno Unito', 5, 'bozza',  array['Londra','Manchester','Edimburgo','Birmingham'], 'Italian speaking'),
+  ('ES', 'Spagna',      6, 'bozza',  array['Madrid','Barcellona','Valencia','Malaga'], 'habla italiano')
+on conflict (codice) do nothing;
+
+-- Categorie valide solo in alcuni paesi (null = in tutti).
+alter table categorie add column if not exists paesi text[];
+
+-- Rotazione della ricerca automatica per coppia categoria + paese.
+create table if not exists ricerche (
+  categoria_id    uuid not null references categorie(id) on delete cascade,
+  paese           text not null references paesi(codice) on delete cascade,
+  ultima_ricerca  timestamptz not null default now(),
+  primary key (categoria_id, paese)
+);
+
+-- La regione non e' piu' solo il cantone: Land, regione, contea (2-3 lettere).
+alter table schede drop constraint if exists schede_cantone_check;
+alter table schede add constraint schede_cantone_check
+  check (cantone is null or length(cantone) between 2 and 3);
+comment on column schede.cantone is 'Regione del paese: cantone in Svizzera, Land in Germania... (sigla ISO 3166-2 senza prefisso)';
 
 -- ─── Recensioni della comunita' ─────────────────────────────
 create table if not exists recensioni (
@@ -236,8 +275,14 @@ alter table guide              enable row level security;
 alter table scadenze           enable row level security;
 alter table recensioni         enable row level security;
 alter table richieste_contatto enable row level security;
+alter table paesi              enable row level security;
+alter table ricerche           enable row level security;
 
--- partner, partner_contratti, schede_proposte: nessuna policy = solo service role.
+-- partner, partner_contratti, schede_proposte, ricerche: nessuna policy = solo service role.
+
+drop policy if exists paesi_lettura on paesi;
+create policy paesi_lettura on paesi for select
+  using (stato = 'attivo');
 
 drop policy if exists servizi_lettura on servizi;
 create policy servizi_lettura on servizi for select
@@ -308,8 +353,8 @@ join (values
   ('salute',           'pediatri',           'Pediatri',                       4, 'pediatri che parlano italiano'),
   ('lavoro',           'agenzie-lavoro',     'Agenzie per il lavoro',          1, 'agenzie di collocamento con consulenti italofoni'),
   ('lavoro',           'formazione',         'Corsi e formazione',             2, 'corsi di tedesco o francese per italofoni, ECAP, formazione professionale'),
-  ('primi-passi',      'consolati-enti',     'Consolati ed enti',              1, 'consolati, Comites, sportelli per italiani in Svizzera'),
-  ('primi-passi',      'associazioni',       'Associazioni',                   2, 'associazioni e missioni cattoliche italiane, circoli regionali'),
+  ('primi-passi',      'consolati-enti',     'Consolati ed enti',              1, 'consolati, Comites, sportelli per italiani all''estero'),
+  ('primi-passi',      'associazioni',       'Associazioni',                   2, 'associazioni e missioni cattoliche italiane, circoli regionali, patronati'),
   ('cassa-malati',     'consulenti-assicurativi','Consulenti assicurativi',    1, 'intermediari assicurativi registrati FINMA che consigliano in italiano'),
   ('sapori',           'negozi-alimentari',  'Negozi alimentari',              1, 'negozi e importatori di prodotti alimentari italiani'),
   ('sapori',           'gastronomie',        'Gastronomie e panetterie',       2, 'gastronomie, salumerie, panetterie e pasticcerie italiane'),
@@ -317,3 +362,7 @@ join (values
   ('previdenza',       'consulenti-previdenza','Consulenti previdenziali',     1, 'consulenti per AVS, pilastri e pensioni Italia-Svizzera che parlano italiano')
 ) as c(servizio, slug, nome, ordine, hint) on c.servizio = s.slug
 on conflict (servizio_id, slug) do nothing;
+
+-- La cassa malati di base e' un sistema svizzero: la categoria vale solo in CH.
+update categorie set paesi = array['CH']
+where slug = 'consulenti-assicurativi' and paesi is null;
