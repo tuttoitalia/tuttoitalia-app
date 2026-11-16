@@ -110,7 +110,9 @@ const isoDa = (s) => {
 // Live Nation: la stessa API serve CH e IT. CountryIds=213 => Svizzera.
 // robots.txt consente /api/ (vieta solo area utente).
 export async function liveNation({ countryIds = '213', etichetta = 'livenation-ch' } = {}) {
-  const url = `https://www.livenation.ch/api/search/events?CountryIds=${countryIds}&PageSize=500&IncludeCancelled=true&IncludePostponed=true`;
+  // Dal rifacimento del sito (nov 2026) l'API vuole `siteId`: senza risponde
+  // 400 "Missing siteId" e la fonte resta muta.
+  const url = `https://www.livenation.ch/api/search/events?siteId=www.livenation.ch&CountryIds=${countryIds}&PageSize=500&IncludeCancelled=true&IncludePostponed=true`;
   const j = await getJson(url);
   const out = [];
   for (const d of (j.documents || [])) {
@@ -118,7 +120,20 @@ export async function liveNation({ countryIds = '213', etichetta = 'livenation-c
     if (!dataIso) continue;
     const venue = d.venue || {};
     const citta = pulisci(venue.city || d.city);
-    const paese = paeseDaCodice(venue.countryCode || d.countryCode) || (cittaSvizzera(citta) ? 'Svizzera' : null);
+    // Il codice ISO non c'e' piu': restano `country` in inglese e `countryId` (213 = Svizzera)
+    const svizzera = String(venue.countryId || '') === '213' || /^(switzerland|schweiz|suisse|svizzera)$/i.test(venue.country || '');
+    const paese = paeseDaCodice(venue.countryCode || d.countryCode) || (svizzera || cittaSvizzera(citta) ? 'Svizzera' : null);
+    // `eventDate` ora porta sempre mezzanotte: l'orario vero sta in showTime, oppure
+    // si ricava da eventDateUtc riportato all'ora di Zurigo.
+    let ora = /^\d{1,2}:\d{2}/.test(d.showTime || '') ? d.showTime.slice(0, 5) : null;
+    if (!ora && d.eventDateUtc) {
+      const t = new Date(d.eventDateUtc);
+      if (!Number.isNaN(t.getTime())) {
+        const hm = t.toLocaleTimeString('it-CH', { timeZone: 'Europe/Zurich', hour: '2-digit', minute: '2-digit', hour12: false });
+        // 23:59 e 00:00 sono segnaposto di "orario non comunicato"
+        if (hm !== '00:00' && hm !== '23:59') ora = hm;
+      }
+    }
     const artista = pulisci((d.lineup && d.lineup[0] && (d.lineup[0].name || d.lineup[0])) || d.attractionName || d.name);
     // `url` ed `externalUrl` sono sempre vuoti: il link vero sta in tickets[].ticketUrl
     const tk = (d.tickets || []).find((t) => t.isVisible !== false && t.ticketUrl) || (d.tickets || [])[0];
@@ -128,7 +143,7 @@ export async function liveNation({ countryIds = '213', etichetta = 'livenation-c
       artista,
       nome: pulisci(d.name || d.title || artista),
       dataIso,
-      ora: (d.eventDate || '').slice(11, 16) || null,
+      ora,
       citta: cittaSvizzera(citta) || citta,
       paese,
       venue: pulisci(venue.name || d.venueName),
@@ -136,6 +151,8 @@ export async function liveNation({ countryIds = '213', etichetta = 'livenation-c
       img: pulisci(d.image || d.imageUrl || (d.images && d.images[0] && d.images[0].url)),
       descrizione: pulisci(d.eventListingText || d.description),
       organizzatore: pulisci(d.promoter) || 'Live Nation',
+      lat: venue.latitude ?? null,
+      lon: venue.longitude ?? null,
     });
   }
   return out;
