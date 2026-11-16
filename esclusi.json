@@ -30,6 +30,11 @@
     "trigger concert big band",
     "broadway celebration",
     "zuri wiesn",
-    "champagner paket"
+    "champagner paket",
+    "lords of the sound"
+  ],
+
+  "omonimi": [
+    { "artista": "Bresh", "categorie": ["Party", "Latini"], "nota": "serata latina itinerante, non il rapper genovese" }
   ]
 }

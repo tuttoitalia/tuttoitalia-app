@@ -240,7 +240,13 @@ export async function ticketcorner(nome) {
     out.push({
       fonte: 'ticketcorner',
       sourceId: String(p.productId ?? ''),
-      artista: pulisci((p.attractions || [])[0]?.name || nome),
+      // Mai riempire il campo col nome CERCATO quando la scheda non ha artisti:
+      // la ricerca Eventim è approssimativa (per "Coez" restituisce "Gros Coeur",
+      // per "Willie Peyote" una cena con delitto, per "Gazzelle" tutto ciò che
+      // sta a Kassel) e con il nome cercato nel campo artista il filtro di
+      // pertinenza li accettava tutti come coincidenza esatta.
+      artista: pulisci((p.attractions || [])[0]?.name),
+      categorie: (p.categories || []).map((c) => c && c.name).filter(Boolean),
       nome: pulisci(p.name),
       dataIso,
       ora: (le?.startDate || '').slice(11, 16) || null,

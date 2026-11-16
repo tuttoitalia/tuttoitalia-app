@@ -176,10 +176,23 @@ function caricaEsclusi() {
     return {
       artisti: (raw.artisti || []).map(norm).filter(Boolean),
       titoli: (raw.titoli || []).map(norm).filter(Boolean),
+      omonimi: (raw.omonimi || []).map((o) => ({
+        artista: norm(o.artista), categorie: (o.categorie || []).map(norm).filter(Boolean),
+      })).filter((o) => o.artista && o.categorie.length),
     };
   } catch {
-    return { artisti: [], titoli: [] };
+    return { artisti: [], titoli: [], omonimi: [] };
   }
+}
+
+// Omonimo riconoscibile solo dal genere: "Bresh" è il rapper genovese ma anche
+// una serata latina itinerante con lo stesso identico nome. Il titolo non li
+// distingue, la categoria della biglietteria sì (Party, Latini).
+function omonimoPerCategoria(ev, artista, esclusi) {
+  const cat = (ev.categorie || []).map(norm);
+  if (!cat.length) return false;
+  const a = norm(artista);
+  return esclusi.omonimi.some((o) => o.artista === a && o.categorie.some((c) => cat.includes(c)));
 }
 
 async function blocklistSupabase() {
@@ -227,6 +240,7 @@ function escluso(ev, artista, blocco, esclusi, titoliVivi) {
   }
   if (esclusi.artisti.includes(norm(artista))) return 'artista in esclusi.json';
   if (esclusi.titoli.some((t) => nome.includes(t))) return 'titolo in esclusi.json';
+  if (omonimoPerCategoria(ev, artista, esclusi)) return 'omonimo per categoria in esclusi.json';
   return null;
 }
 
