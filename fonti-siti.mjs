@@ -131,7 +131,7 @@ Regole:
 - "italiano" e' true solo se l'artista principale, la compagnia o l'orchestra e' italiana, oppure se e' un tributo eseguito da artisti italiani. Un'opera di Verdi eseguita da un'orchestra svizzera e' false. Nel dubbio false.
 - I link relativi vanno completati con l'indirizzo della pagina.
 - Non inventare nulla che non sia nel testo.
-- Se nella pagina ci sono eventi elencati SENZA giorno preciso (es. "World Tour", "Europe Tour") ma con un link alla loro scheda sullo stesso sito, metti quei link in "da_aprire" (massimo 15): {"eventi":[...],"da_aprire":["https://..."]}.
+- Se nella pagina ci sono eventi elencati SENZA giorno preciso (es. "World Tour", "Europe Tour") ma con un link alla loro scheda o alla pagina dei biglietti (anche su un altro sito), metti quei link in "da_aprire" (massimo 15): {"eventi":[...],"da_aprire":["https://..."]}.
 - Per "italiano" giudica dal nome e dalle informazioni del testo: nomi francesi, tedeschi o svizzeri non sono italiani. Un festival o una rassegna e' italiano solo se il testo lo dice.`;
 
 async function estraiConClaude(testo, url, oggi) {
@@ -168,7 +168,7 @@ export async function leggiSito(f, oggi) {
   // Schede degli eventi senza data nella pagina principale (i tour delle agenzie)
   const dominio = (u) => new URL(u).hostname.replace(/^www\./, '');
   const host = dominio(f.url);
-  const schede = [...new Set(primo.daAprire.map((u) => assoluto(u, f.url)).filter((u) => u && dominio(u) === host))].slice(0, 15);
+  const schede = [...new Set(primo.daAprire.map((u) => assoluto(u, f.url)).filter(Boolean))].sort((a, b) => (dominio(b) === host) - (dominio(a) === host)).slice(0, 15);
   if (primo.daAprire.length && !schede.length) console.log(`    schede scartate: ${primo.daAprire.slice(0, 3).join(' ')}`);
   if (schede.length) {
     const testi = [];
