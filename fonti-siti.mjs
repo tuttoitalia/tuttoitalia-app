@@ -13,7 +13,7 @@
 // watchlist per i siti che non sono di sole proposte italiane.
 // ============================================================
 
-import { fetchT, cittaSvizzera } from './fonti.mjs';
+import { fetchT, cittaSvizzera, ticketcorner, pertinente } from './fonti.mjs';
 
 const SUPA_URL = process.env.SUPABASE_URL;
 const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -31,7 +31,7 @@ export const FONTI_PREDEFINITE = [
   { id: 'ticketcorner', nome: 'Ticketcorner', url: 'https://www.ticketcorner.ch', tipo: 'watchlist', attiva: true },
   { id: 'ticketino', nome: 'Ticketino', url: 'https://www.ticketino.com', tipo: 'watchlist', attiva: true },
   { id: 'billetterie-geneve', nome: 'Billetterie culturelle Ville de Genève', url: 'https://billetterie-culture.geneve.ch/list/events', tipo: 'sito', attiva: true, tutti_italiani: false },
-  { id: 'marbea', nome: 'Marbea Entertainment', url: 'https://www.marbea.ch/eventi', tipo: 'sito', attiva: true, tutti_italiani: true },
+  { id: 'marbea', nome: 'Marbea Entertainment', url: 'https://www.marbea.ch/eventi', tipo: 'sito', attiva: true, tutti_italiani: false },
   { id: 'dema-agency', nome: 'Dema Agency', url: 'https://www.dema-agency.ch/', tipo: 'sito', attiva: true, tutti_italiani: true },
 ];
 
@@ -173,7 +173,18 @@ export async function leggiSito(f, oggi) {
   if (schede.length) {
     const testi = [];
     for (const u of schede) {
-      try { testi.push(`=== PAGINA: ${u}\n${(await scaricaTesto(u)).slice(0, 8000)}`); } catch (e) { console.warn(`    scheda ${u}: ${e.message}`); }
+      try {
+        // Le pagine artista di Ticketcorner non rispondono ai bot: stesse date
+        // dall'API Eventim gia' usata per la watchlist.
+        const tc = u.match(/ticketcorner\.ch\/(?:[a-z]{2}\/)?artist\/([^/?#]+)/);
+        if (tc) {
+          const nome = decodeURIComponent(tc[1]).replace(/-/g, ' ');
+          const ev = (await ticketcorner(nome)).filter((e) => pertinente(e, nome));
+          testi.push(`=== PAGINA: ${u}\n` + ev.map((e) => `${e.nome} | ${e.dataIso} ${e.ora || ''} | ${e.citta || ''} | ${e.venue || ''} | [link:${e.ticketUrl}] [img:${e.img || ''}]`).join('\n'));
+        } else {
+          testi.push(`=== PAGINA: ${u}\n${(await scaricaTesto(u)).slice(0, 8000)}`);
+        }
+      } catch (e) { console.warn(`    scheda ${u}: ${e.message}`); }
       await new Promise((r) => setTimeout(r, 500));
     }
     if (testi.length) {
