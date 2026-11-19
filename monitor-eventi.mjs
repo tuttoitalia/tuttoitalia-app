@@ -296,11 +296,14 @@ function giaInCalendario(ev, perDataCitta) {
 }
 
 // ─── Raccolta dalle fonti ─────────────────────────────────────
-async function raccogli(watchlist, fonti, esiti, oggi) {
+async function raccogli(watchlist, fonti, salvate, esiti, oggi) {
   const tutti = [];
   const problemi = [];
   // Le fonti spente dal gestionale (/admin/eventi/fonti) non si interrogano.
+  // Se l'elenco e' salvato, una piattaforma tolta col cestino non si interroga piu'.
   const spente = new Set(fonti.filter((f) => f.attiva === false).map((f) => f.id));
+  const presenti = salvate ? new Set(fonti.map((f) => f.id)) : null;
+  const accesa = (nome) => !spente.has(nome) && (!presenti || presenti.has(nome));
   const ora = () => new Date().toISOString();
 
   // 0) Siti generici: una volta al giorno, estrazione con Claude
@@ -319,14 +322,16 @@ async function raccogli(watchlist, fonti, esiti, oggi) {
 
   // 1) Fonti a catalogo: una richiesta scarica tutto
   for (const [nome, fn] of Object.entries(FONTI_CATALOGO)) {
-    if (spente.has(nome)) continue;
+    if (!accesa(nome)) continue;
     try {
       const ev = await fn();
       console.log(`  · ${nome}: ${ev.length} eventi`);
       tutti.push(...ev);
+      esiti[nome] = { data: ora(), esito: 'ok', trovati: ev.length, italiani: 0 };
     } catch (e) {
       console.error(`  ✗ ${nome}: ${e.message}`);
       problemi.push(nome);
+      esiti[nome] = { data: ora(), esito: 'errore', errore: String(e.message).slice(0, 200) };
     }
   }
 
@@ -334,9 +339,14 @@ async function raccogli(watchlist, fonti, esiti, oggi) {
   const scaglione = watchlist.filter((_, i) => i % SCAGLIONI === SLICE);
   console.log(`  · scaglione watchlist ${SLICE + 1}/${SCAGLIONI}: ${scaglione.length} artisti`);
   for (const [nome, fn] of Object.entries(FONTI_WATCHLIST)) {
-    if (spente.has(nome)) continue;
+    if (!accesa(nome)) continue;
+    // "Ricontrolla" dal gestionale: giro completo su tutta la watchlist
+    const completo = !!fonti.find((f) => f.id === nome)?.ricontrolla;
+    const artisti = completo ? watchlist : scaglione;
     let trovati = 0;
-    for (const art of scaglione) {
+    let falliti = 0;
+    let ultimoErrore = '';
+    for (const art of artisti) {
       try {
         const ev = await fn(art.nome);
         for (const e of ev) {
@@ -347,10 +357,15 @@ async function raccogli(watchlist, fonti, esiti, oggi) {
         }
       } catch (e) {
         problemi.push(`${nome}/${art.nome}`);
+        falliti++;
+        ultimoErrore = e.message;
       }
       await new Promise((r) => setTimeout(r, 350));  // educati con i loro server
     }
-    console.log(`  · ${nome}: ${trovati} eventi su ${scaglione.length} artisti`);
+    console.log(`  · ${nome}: ${trovati} eventi su ${artisti.length} artisti${completo ? ' (giro completo)' : ''}`);
+    esiti[nome] = artisti.length && falliti === artisti.length
+      ? { data: ora(), esito: 'errore', errore: String(ultimoErrore).slice(0, 200) }
+      : { data: ora(), esito: 'ok', trovati, italiani: trovati, artisti: artisti.length, ...(completo ? { completo: true } : {}) };
   }
   return { tutti, problemi };
 }
@@ -379,10 +394,9 @@ async function main() {
   const blocco = await blocklistSupabase();
   console.log(`  esclusioni: ${blocco.chiavi.size} eventi cancellati a mano + ${esclusi.artisti.length} artisti e ${esclusi.titoli.length} titoli in esclusi.json`);
 
-  const { fonti } = await leggiFonti();
+  const { fonti, salvate } = await leggiFonti();
   const esiti = {};
-  const { tutti, problemi } = await raccogli(watchlist, fonti, esiti, oggi);
-  if (Object.keys(esiti).length && !DRY_RUN) await salvaEsiti(esiti);
+  const { tutti, problemi } = await raccogli(watchlist, fonti, salvate, esiti, oggi);
   console.log(`\n  raccolti ${tutti.length} eventi grezzi da ${Object.keys(FONTI_CATALOGO).length + Object.keys(FONTI_WATCHLIST).length} fonti`);
 
   // ── Filtri: artista italiano, fuori dall'Italia, data futura, dati minimi ──
@@ -406,6 +420,8 @@ async function main() {
       (ev.tuttiItaliani || ev.italiano) ? (ev.artista || ev.nome) : null
     );
     if (!artista) { scarti.nonItaliano++; continue; }
+    // eventi italiani riconosciuti per piattaforma a catalogo (colonna del gestionale)
+    if (esiti[ev.fonte] && ev.fonte in FONTI_CATALOGO && esiti[ev.fonte].esito === 'ok') esiti[ev.fonte].italiani++;
 
     // cancellato a mano in passato: non si ripropone
     const motivo = escluso(ev, artista, blocco, esclusi, titoliVivi);
@@ -425,6 +441,8 @@ async function main() {
     visti.add(k);
     candidati.push({ ...ev, artista, inCH });
   }
+
+  if (Object.keys(esiti).length && !DRY_RUN) await salvaEsiti(esiti);
 
   candidati.sort((a, b) => (b.inCH - a.inCH) || a.dataIso.localeCompare(b.dataIso));
   console.log(`  candidati NUOVI: ${candidati.length}  (di cui in Svizzera: ${candidati.filter((c) => c.inCH).length})`);

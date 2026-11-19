@@ -48,7 +48,13 @@ export async function leggiFonti() {
 // modifiche restano.
 export async function salvaEsiti(esiti) {
   const { fonti } = await leggiFonti();
-  const aggiornate = fonti.map((f) => (esiti[f.id] ? { ...f, ultimo: esiti[f.id] } : f));
+  // un controllo eseguito chiude anche la richiesta "ricontrolla" del gestionale
+  const aggiornate = fonti.map((f) => {
+    if (!esiti[f.id]) return f;
+    if (f.tipo === 'watchlist' && !esiti[f.id].completo) return { ...f, ultimo: esiti[f.id] };
+    const { ricontrolla, ...resto } = f;
+    return { ...resto, ultimo: esiti[f.id] };
+  });
   const r = await fetchT(`${SUPA_URL}/rest/v1/impostazioni?on_conflict=chiave`, {
     method: 'POST',
     headers: { ...supaHeaders, Prefer: 'resolution=merge-duplicates,return=minimal' },
