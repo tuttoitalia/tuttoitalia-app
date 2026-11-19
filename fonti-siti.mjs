@@ -18,7 +18,9 @@ import { fetchT, cittaSvizzera } from './fonti.mjs';
 const SUPA_URL = process.env.SUPABASE_URL;
 const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ANTHROPIC = process.env.ANTHROPIC_API_KEY;
-const MODELLO = 'claude-haiku-5-5';
+// Sonnet e non Haiku: Haiku segnava come italiani pianisti svizzeri e
+// orchestre ginevrine (prova del 20.11.2026). Gira una volta al giorno per sito.
+const MODELLO = 'claude-sonnet-5-5';
 const supaHeaders = { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json' };
 
 // Fonti iniziali: valgono finche' la riga in impostazioni non esiste.
@@ -125,7 +127,9 @@ Regole:
 - Anno mancante: il prossimo in cui la data cade nel futuro rispetto a OGGI.
 - "italiano" e' true solo se l'artista principale, la compagnia o l'orchestra e' italiana, oppure se e' un tributo eseguito da artisti italiani. Un'opera di Verdi eseguita da un'orchestra svizzera e' false. Nel dubbio false.
 - I link relativi vanno completati con l'indirizzo della pagina.
-- Non inventare nulla che non sia nel testo.`;
+- Non inventare nulla che non sia nel testo.
+- Se nella pagina ci sono eventi elencati SENZA giorno preciso (es. "World Tour", "Europe Tour") ma con un link alla loro scheda sullo stesso sito, metti quei link in "da_aprire" (massimo 15): {"eventi":[...],"da_aprire":["https://..."]}.
+- Per "italiano" giudica dal nome e dalle informazioni del testo: nomi francesi, tedeschi o svizzeri non sono italiani. Un festival o una rassegna e' italiano solo se il testo lo dice.`;
 
 async function estraiConClaude(testo, url, oggi) {
   if (!ANTHROPIC) throw new Error('ANTHROPIC_API_KEY mancante');
@@ -135,7 +139,7 @@ async function estraiConClaude(testo, url, oggi) {
     body: JSON.stringify({
       model: MODELLO,
       max_tokens: 16000,
-      thinking: { type: 'disabled' },
+      thinking: { type: 'between_tools' },
       system: ISTRUZIONI,
       messages: [{ role: 'user', content: `OGGI: ${oggi}\nPAGINA: ${url}\n\n${testo}` }],
     }),
@@ -145,7 +149,8 @@ async function estraiConClaude(testo, url, oggi) {
   const out = (j.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('');
   const m = out.match(/\{[\s\S]*\}/);
   if (!m) throw new Error('risposta senza JSON');
-  return JSON.parse(m[0]).eventi || [];
+  const j2 = JSON.parse(m[0]);
+  return { eventi: j2.eventi || [], daAprire: Array.isArray(j2.da_aprire) ? j2.da_aprire : [] };
 }
 
 const pulisci = (s) => (s == null ? null : String(s).replace(/\s+/g, ' ').trim() || null);
@@ -153,7 +158,25 @@ const assoluto = (u, base) => { try { return u ? new URL(u, base).href : null; }
 
 export async function leggiSito(f, oggi) {
   const testo = await scaricaTesto(f.url);
-  const grezzi = await estraiConClaude(testo, f.url, oggi);
+  const primo = await estraiConClaude(testo, f.url, oggi);
+  let grezzi = primo.eventi;
+  console.log(`    ${f.id}: testo ${testo.length} caratteri, ${grezzi.length} eventi, ${primo.daAprire.length} schede da aprire`);
+  if (!grezzi.length) console.log(`    inizio testo: ${testo.slice(0, 300).replace(/\n/g, ' | ')}`);
+  // Schede degli eventi senza data nella pagina principale (i tour delle agenzie)
+  const host = new URL(f.url).hostname;
+  const schede = [...new Set(primo.daAprire.map((u) => assoluto(u, f.url)).filter((u) => u && new URL(u).hostname === host))].slice(0, 15);
+  if (schede.length) {
+    const testi = [];
+    for (const u of schede) {
+      try { testi.push(`=== PAGINA: ${u}\n${(await scaricaTesto(u)).slice(0, 8000)}`); } catch (e) { console.warn(`    scheda ${u}: ${e.message}`); }
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    if (testi.length) {
+      const secondo = await estraiConClaude(testi.join('\n\n').slice(0, 90000), f.url, oggi);
+      console.log(`    ${f.id}: ${secondo.eventi.length} eventi dalle schede`);
+      grezzi = grezzi.concat(secondo.eventi);
+    }
+  }
   return grezzi
     .filter((e) => /^\d{4}-\d{2}-\d{2}$/.test(e.data || ''))
     .map((e) => {
