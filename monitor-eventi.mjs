@@ -24,6 +24,7 @@ import {
   FONTI_CATALOGO, FONTI_WATCHLIST, pertinente, cittaSvizzera,
   mononomeIsolato, isPacchetto, fetchT, withRetry,
 } from './fonti.mjs';
+import { leggiFonti, salvaEsiti, daControllare, leggiSito } from './fonti-siti.mjs';
 
 const SUPA_URL = process.env.SUPABASE_URL;
 const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -295,12 +296,30 @@ function giaInCalendario(ev, perDataCitta) {
 }
 
 // ─── Raccolta dalle fonti ─────────────────────────────────────
-async function raccogli(watchlist) {
+async function raccogli(watchlist, fonti, esiti, oggi) {
   const tutti = [];
   const problemi = [];
+  // Le fonti spente dal gestionale (/admin/eventi/fonti) non si interrogano.
+  const spente = new Set(fonti.filter((f) => f.attiva === false).map((f) => f.id));
+  const ora = () => new Date().toISOString();
+
+  // 0) Siti generici: una volta al giorno, estrazione con Claude
+  for (const f of fonti.filter((x) => daControllare(x))) {
+    try {
+      const ev = await leggiSito(f, oggi);
+      console.log(`  · ${f.id}: ${ev.length} eventi (sito)`);
+      tutti.push(...ev);
+      esiti[f.id] = { data: ora(), esito: 'ok', trovati: ev.length, italiani: ev.filter((e) => e.italiano || e.tuttiItaliani).length };
+    } catch (e) {
+      console.error(`  ✗ ${f.id}: ${e.message}`);
+      problemi.push(f.id);
+      esiti[f.id] = { data: ora(), esito: 'errore', errore: String(e.message).slice(0, 200) };
+    }
+  }
 
   // 1) Fonti a catalogo: una richiesta scarica tutto
   for (const [nome, fn] of Object.entries(FONTI_CATALOGO)) {
+    if (spente.has(nome)) continue;
     try {
       const ev = await fn();
       console.log(`  · ${nome}: ${ev.length} eventi`);
@@ -315,6 +334,7 @@ async function raccogli(watchlist) {
   const scaglione = watchlist.filter((_, i) => i % SCAGLIONI === SLICE);
   console.log(`  · scaglione watchlist ${SLICE + 1}/${SCAGLIONI}: ${scaglione.length} artisti`);
   for (const [nome, fn] of Object.entries(FONTI_WATCHLIST)) {
+    if (spente.has(nome)) continue;
     let trovati = 0;
     for (const art of scaglione) {
       try {
@@ -359,7 +379,10 @@ async function main() {
   const blocco = await blocklistSupabase();
   console.log(`  esclusioni: ${blocco.chiavi.size} eventi cancellati a mano + ${esclusi.artisti.length} artisti e ${esclusi.titoli.length} titoli in esclusi.json`);
 
-  const { tutti, problemi } = await raccogli(watchlist);
+  const { fonti } = await leggiFonti();
+  const esiti = {};
+  const { tutti, problemi } = await raccogli(watchlist, fonti, esiti, oggi);
+  if (Object.keys(esiti).length && !DRY_RUN) await salvaEsiti(esiti);
   console.log(`\n  raccolti ${tutti.length} eventi grezzi da ${Object.keys(FONTI_CATALOGO).length + Object.keys(FONTI_WATCHLIST).length} fonti`);
 
   // ── Filtri: artista italiano, fuori dall'Italia, data futura, dati minimi ──
@@ -377,6 +400,10 @@ async function main() {
     const artista = ev.artistaWatchlist || trovaArtistaItaliano(ev, watchlist) || (
       // i promoter italiani hanno un roster tutto italiano: mi fido della fonte
       ['vivoconcerti', 'friendsandpartners'].includes(ev.fonte) ? ev.artista : null
+    ) || (
+      // siti generici: agenzia di sole proposte italiane, oppure Claude ha
+      // riconosciuto artista o interpreti italiani
+      (ev.tuttiItaliani || ev.italiano) ? (ev.artista || ev.nome) : null
     );
     if (!artista) { scarti.nonItaliano++; continue; }
 

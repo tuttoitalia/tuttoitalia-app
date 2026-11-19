@@ -9,11 +9,15 @@ on:
         description: "Prova senza scrivere (1 = dry run, 0 = reale)"
         default: '0'
         required: false
+      forza_siti:
+        description: "Controlla subito tutti i siti (1 = si)"
+        default: '0'
+        required: false
 
 jobs:
   monitor:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -28,5 +32,7 @@ jobs:
           BASE44_TOKEN: ${{ secrets.BASE44_TOKEN }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          FORZA_SITI: ${{ github.event.inputs.forza_siti }}
           DRY_RUN: ${{ github.event.inputs.dry_run }}
         run: node monitor-eventi.mjs
