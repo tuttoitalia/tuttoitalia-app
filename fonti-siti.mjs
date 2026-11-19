@@ -163,8 +163,10 @@ export async function leggiSito(f, oggi) {
   console.log(`    ${f.id}: testo ${testo.length} caratteri, ${grezzi.length} eventi, ${primo.daAprire.length} schede da aprire`);
   if (!grezzi.length) console.log(`    inizio testo: ${testo.slice(0, 300).replace(/\n/g, ' | ')}`);
   // Schede degli eventi senza data nella pagina principale (i tour delle agenzie)
-  const host = new URL(f.url).hostname;
-  const schede = [...new Set(primo.daAprire.map((u) => assoluto(u, f.url)).filter((u) => u && new URL(u).hostname === host))].slice(0, 15);
+  const dominio = (u) => new URL(u).hostname.replace(/^www\./, '');
+  const host = dominio(f.url);
+  const schede = [...new Set(primo.daAprire.map((u) => assoluto(u, f.url)).filter((u) => u && dominio(u) === host))].slice(0, 15);
+  if (primo.daAprire.length && !schede.length) console.log(`    schede scartate: ${primo.daAprire.slice(0, 3).join(' ')}`);
   if (schede.length) {
     const testi = [];
     for (const u of schede) {
