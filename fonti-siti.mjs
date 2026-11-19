@@ -98,8 +98,11 @@ async function conBrowser(url) {
   const browser = await pw.chromium.launch();
   try {
     const page = await browser.newPage();
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 45000 });
-    await page.waitForTimeout(2500);
+    // I siti Wix non arrivano mai a "networkidle" (analytics sempre attivi):
+    // si attende il DOM e poi qualche secondo per i widget.
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+    await page.waitForTimeout(3000);
     return await page.content();
   } finally {
     await browser.close();
